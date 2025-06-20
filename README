@@ -1,0 +1,18 @@
+rm -rf venv
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+
+docker-compose up -d
+docker-compose down -v
+brew services stop postgresql
+docker-compose down -v && docker-compose up -d
+brew services start postgresql
+brew install llvm libsndfile
+uvicorn main:app --reload
+
+curl -X DELETE http://localhost:8000/detections/
+
+curl -X POST "http://localhost:8000/calibrate_noise?duration=5"
+
+<link rel="stylesheet" href="/static/css/style.css">

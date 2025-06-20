@@ -1,0 +1,7 @@
+venv/
+.env
+__pycache__/
+profiles/
+models/
+detected_drones/
+audio_samples/

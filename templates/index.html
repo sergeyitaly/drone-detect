@@ -1,0 +1,954 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Drone Detection System</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/luxon@3.0.1"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1.2.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-streaming@2.0.0"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <div class="logo">
+                <i class="fas fa-drone-alt"></i>
+                <h1>Drone Detection System</h1>
+            </div>
+            <div class="system-status">
+                <div class="status-indicator connecting" id="statusIndicator"></div>
+                <span class="status-text" id="statusText">Connecting...</span>
+                <div class="current-time" id="currentTime"></div>
+            </div>
+        </header>
+
+        <div class="controls">
+            <button class="btn btn-primary" id="startBtn">
+                <i class="fas fa-microphone"></i>
+                Start Listening
+            </button>
+            <button class="btn btn-danger" id="stopBtn" disabled>
+                <i class="fas fa-microphone-slash"></i>
+                Stop Listening
+            </button>
+        </div>
+
+        <div class="alert-banner" id="droneAlert">
+            <i class="fas fa-exclamation-triangle"></i>
+            <span id="alertType">DRONE DETECTED!</span>
+            <span id="alertDetails">Confidence: 92% at 150Hz</span>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon">
+                    <i class="fas fa-wave-square"></i>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-title">Total Detections</div>
+                    <div class="stat-value" id="totalDetections">0</div>
+                    <div class="stat-trend positive">
+                        <i class="fas fa-arrow-up"></i>
+                        <span id="detectionRate">0</span>/min
+                    </div>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-icon">
+                    <i class="fas fa-chart-line"></i>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-title">Current Frequency</div>
+                    <div class="stat-value" id="currentFrequency">- Hz</div>
+                    <div class="stat-trend">
+                        <i class="fas fa-waveform"></i>
+                        <span>Real-time</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-icon">
+                    <i class="fas fa-percentage"></i>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-title">Avg Confidence</div>
+                    <div class="stat-value" id="avgConfidence">0%</div>
+                    <div class="stat-trend">
+                        <i class="fas fa-chart-bar"></i>
+                        <span>Last 10 detections</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-icon">
+                    <i class="fas fa-clock"></i>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-title">System Uptime</div>
+                    <div class="stat-value" id="systemUptime">00:00:00</div>
+                    <div class="stat-trend">
+                        <i class="fas fa-check-circle"></i>
+                        <span>Stable</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="dashboard-grid">
+            <div class="chart-card">
+                <div class="card-header">
+                    <h3>Confidence Over Time</h3>
+                    <div class="card-actions">
+                        <button class="btn-icon" id="resetConfidenceChart">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="confidenceChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-card">
+                <div class="card-header">
+                    <h3>Frequency Spectrum</h3>
+                    <div class="card-actions">
+                        <div class="range-label" id="freqRangeLabel">80-250Hz</div>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="frequencyChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-card">
+                <div class="card-header">
+                    <h3>Audio Waveform</h3>
+                </div>
+                <div class="chart-container">
+                    <canvas id="audioWaveformChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-card">
+                <div class="card-header">
+                    <h3>Harmonic Analysis</h3>
+                </div>
+                <div class="chart-container">
+                    <canvas id="harmonicChart"></canvas>
+                </div>
+            </div>
+
+            <div class="detections-card">
+                <div class="card-header">
+                    <h3>Recent Detections</h3>
+                    <div class="card-actions">
+                        <button class="btn-icon" id="clearDetections">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="detections-list" id="detectionsList">
+                    <div class="empty-state">
+                        <i class="fas fa-microphone"></i>
+                        <p>Listening for drone sounds...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // System State
+        let detections = [];
+        let detectionTimestamps = [];
+        let startTime = new Date();
+        let websocket;
+        let sessionId;
+        let isListening = false;
+        let audioContext;
+        let audioAnalyser;
+        let microphone;
+        let processorNode;
+        let audioDataArray = new Float32Array(1024);
+        let isProcessingAudio = false;
+
+        // DOM Elements
+        const currentTimeEl = document.getElementById('currentTime');
+        const statusIndicator = document.getElementById('statusIndicator');
+        const statusText = document.getElementById('statusText');
+        const droneAlert = document.getElementById('droneAlert');
+        const alertDetails = document.getElementById('alertDetails');
+        const totalDetectionsEl = document.getElementById('totalDetections');
+        const currentFrequencyEl = document.getElementById('currentFrequency');
+        const avgConfidenceEl = document.getElementById('avgConfidence');
+        const detectionRateEl = document.getElementById('detectionRate');
+        const systemUptimeEl = document.getElementById('systemUptime');
+        const detectionsList = document.getElementById('detectionsList');
+        const clearDetectionsBtn = document.getElementById('clearDetections');
+        const resetConfidenceBtn = document.getElementById('resetConfidenceChart');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+
+        // Register Chart plugins
+        Chart.register(ChartStreaming);
+
+        // Initialize Charts
+        const confidenceCtx = document.getElementById('confidenceChart').getContext('2d');
+        const frequencyCtx = document.getElementById('frequencyChart').getContext('2d');
+        const audioWaveformCtx = document.getElementById('audioWaveformChart').getContext('2d');
+        const harmonicCtx = document.getElementById('harmonicChart').getContext('2d');
+        
+        // Confidence Chart
+        const confidenceChart = new Chart(confidenceCtx, {
+            type: 'line',
+            data: {
+                datasets: [{
+                    label: 'Confidence',
+                    data: [],
+                    borderColor: 'rgba(234, 84, 85, 1)',
+                    backgroundColor: 'rgba(234, 84, 85, 0.1)',
+                    borderWidth: 2,
+                    tension: 0.1,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: (context) => `${Math.round(context.raw.y * 100)}% confidence`
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        type: 'realtime',
+                        realtime: {
+                            duration: 60000,
+                            refresh: 1000,
+                            delay: 100,
+                            onRefresh: chart => {
+                                const now = Date.now();
+                                const firstData = chart.data.datasets[0].data[0];
+                                if (firstData && now - firstData.x > 60000) {
+                                    chart.data.datasets[0].data.shift();
+                                }
+                            }
+                        }
+                    },
+                    y: {
+                        min: 0,
+                        max: 1,
+                        ticks: {
+                            callback: value => `${value * 100}%`
+                        }
+                    }
+                }
+            }
+        });
+
+        // Frequency Spectrum Chart
+        const frequencyChart = new Chart(frequencyCtx, {
+            type: 'bar',
+            data: {
+                labels: Array.from({length: 100}, (_, i) => i * 5),
+                datasets: [{
+                    label: 'Frequency Amplitude',
+                    data: Array(100).fill(0),
+                    backgroundColor: (ctx) => {
+                        const value = ctx.raw || 0;
+                        return value > 0.7 ? 'rgba(234, 84, 85, 0.7)' :
+                               value > 0.4 ? 'rgba(255, 159, 64, 0.7)' :
+                               'rgba(65, 140, 216, 0.7)';
+                    },
+                    borderColor: 'rgba(65, 140, 216, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: (context) => `${context.label}Hz: ${context.raw.toFixed(2)}`
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        title: { display: true, text: 'Frequency (Hz)' },
+                        min: 0,
+                        max: 500
+                    },
+                    y: {
+                        title: { display: true, text: 'Amplitude' },
+                        min: 0,
+                        max: 1
+                    }
+                }
+            }
+        });
+
+        // Audio Waveform Chart
+        const audioWaveformChart = new Chart(audioWaveformCtx, {
+            type: 'line',
+            data: {
+                datasets: [{
+                    label: 'Audio Waveform',
+                    data: [],
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    borderWidth: 1,
+                    pointRadius: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    x: { display: false },
+                    y: { 
+                        min: -1, 
+                        max: 1,
+                        ticks: {
+                            callback: value => value.toFixed(1)
+                        }
+                    }
+                }
+            }
+        });
+
+        // Harmonic Analysis Chart
+        const harmonicChart = new Chart(harmonicCtx, {
+            type: 'scatter',
+            data: {
+                datasets: [{
+                    label: 'Harmonics',
+                    data: [],
+                    backgroundColor: 'rgba(234, 84, 85, 0.7)',
+                    borderColor: 'rgba(234, 84, 85, 1)',
+                    borderWidth: 1,
+                    pointRadius: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: (context) => `${context.raw.x}Hz (harmonic ${context.raw.harmonic})`
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        title: { display: true, text: 'Frequency (Hz)' },
+                        min: 0,
+                        max: 500
+                    },
+                    y: {
+                        title: { display: true, text: 'Amplitude' },
+                        min: 0,
+                        max: 1
+                    }
+                }
+            }
+        });
+
+        function showSpectralDetails(features) {
+            const modal = document.createElement('div');
+            modal.className = 'modal';
+            modal.innerHTML = `
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>Spectral Analysis</h3>
+                        <button class="close-modal">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        ${features.fundamental_frequency ? 
+                            `<p><strong>Fundamental Frequency:</strong> ${features.fundamental_frequency.toFixed(1)}Hz</p>` : ''}
+                        ${features.harmonic_structure !== undefined ? 
+                            `<p><strong>Harmonic Structure:</strong> ${features.harmonic_structure ? 'Yes' : 'No'}</p>` : ''}
+                        
+                        <h4>Top Frequencies:</h4>
+                        <ul class="frequency-list">
+                            ${features.top_frequencies.map((freq, i) => `
+                                <li>${freq.toFixed(1)}Hz (${features.top_magnitudes[i].toFixed(1)} magnitude)</li>
+                            `).join('')}
+                        </ul>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+            
+            // Close modal
+            modal.querySelector('.close-modal').addEventListener('click', () => {
+                document.body.removeChild(modal);
+            });
+            
+            // Close when clicking outside
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    document.body.removeChild(modal);
+                }
+            });
+        }
+        
+        async function fetchHistoricalDetections() {
+            try {
+                const response = await fetch('/detections');
+                const data = await response.json();
+                
+                // Clear existing detections
+                detections = [];
+                detectionTimestamps = [];
+                detectionsList.innerHTML = '';
+                
+                // Process each detection
+                data.forEach(detection => {
+                    handleDetection(detection);
+                });
+                
+                console.log(`Loaded ${data.length} historical detections`);
+            } catch (error) {
+                console.error('Error fetching historical detections:', error);
+            }
+        }
+
+        function handleDetection(detection) {
+            // Convert database format to expected format if needed
+            const processedDetection = {
+                timestamp: detection.timestamp,
+                confidence: detection.confidence,
+                is_drone: detection.is_drone,
+                is_shaheed: detection.is_shaheed || false,  // Ensure this field exists
+                frequency: detection.frequency !== null ? detection.frequency : null, 
+                session_id: detection.session_id,
+                drone_type: detection.is_shaheed ? "Shaheed" : (detection.drone_type || "Drone"),
+                spectral_features: typeof detection.spectral_features === 'string' ? 
+                    JSON.parse(detection.spectral_features) : 
+                    detection.spectral_features
+            };
+            
+            // Add to detections array
+            detections.push(processedDetection);
+            detectionTimestamps.push(new Date(processedDetection.timestamp));
+            
+            // Update UI
+            updateUI(processedDetection);
+            updateCharts(processedDetection);
+            
+            if (processedDetection.is_drone) {
+                showDroneAlert(processedDetection);
+            }
+        }
+                
+        function updateLocalVisualization(audioData) {
+            // Update waveform chart
+            const waveformPoints = [];
+            for (let i = 0; i < audioData.length; i += 10) { // Downsample
+                waveformPoints.push({x: i, y: audioData[i]});
+            }
+            audioWaveformChart.data.datasets[0].data = waveformPoints;
+            audioWaveformChart.update('none');
+            
+            // Update frequency spectrum
+            if (audioAnalyser) {
+                const freqData = new Float32Array(audioAnalyser.frequencyBinCount);
+                audioAnalyser.getFloatFrequencyData(freqData);
+                
+                const normalizedData = Array.from(freqData).map(val => {
+                    return Math.pow(10, (val + 100) / 20); // Convert dB to linear scale (approx 0-1)
+                });
+                
+                frequencyChart.data.datasets[0].data = normalizedData.slice(0, 100); // First 100 bins
+                frequencyChart.update('none');
+            }
+        }
+
+        function updateAudioVisualization(audioData) {
+            if (!isListening) return;
+            
+            // Update waveform chart
+            const waveformPoints = Array.from(audioData)
+                .filter((_, i) => i % 10 === 0) // Downsample for performance
+                .map((val, i) => ({x: i, y: val}));
+            
+            audioWaveformChart.data.datasets[0].data = waveformPoints;
+            audioWaveformChart.update('none');
+            
+            // Update frequency spectrum
+            const freqData = new Float32Array(analyser.frequencyBinCount);
+            analyser.getFloatFrequencyData(freqData);
+            
+            const normalizedData = Array.from(freqData).map(val => {
+                return Math.pow(10, (val + 100) / 20); // Convert dB to linear scale (approx 0-1)
+            });
+            
+            frequencyChart.data.datasets[0].data = normalizedData
+                .slice(0, frequencyChart.data.datasets[0].data.length);
+            frequencyChart.update('none');
+        }
+
+        
+        function updateHarmonicChart(features) {
+            if (!features || !features.top_frequencies) return;
+            
+            const harmonics = [];
+            const fundamental = features.top_frequencies[0];
+            
+            for (let i = 1; i <= 5; i++) {
+                const harmonicFreq = fundamental * i;
+                if (harmonicFreq > 500) break;
+                
+                harmonics.push({
+                    x: harmonicFreq,
+                    y: 0.9 - (i * 0.1),
+                    harmonic: i
+                });
+            }
+            
+            harmonicChart.data.datasets[0].data = harmonics;
+            harmonicChart.update();
+        }
+
+        function updateUI(detection) {
+            // Update counters
+            totalDetectionsEl.textContent = detections.length;
+            
+            // Update detection rate (last minute)
+            const now = new Date();
+            const recentDetections = detectionTimestamps.filter(
+                ts => now - ts < 60000
+            ).length;
+            detectionRateEl.textContent = recentDetections;
+            
+            // Update average confidence (last 10 detections)
+            const recentConfidences = detections
+                .slice(-10)
+                .map(d => d.confidence);
+            const avgConfidence = recentConfidences.length > 0 
+                ? recentConfidences.reduce((a, b) => a + b, 0) / recentConfidences.length
+                : 0;
+            avgConfidenceEl.textContent = `${Math.round(avgConfidence * 100)}%`;
+            
+            // Update frequency display
+            currentFrequencyEl.textContent = detection.frequency !== null ? 
+                `${Math.round(detection.frequency)} Hz` : 
+                '- Hz';
+            
+            // Update harmonic chart if we have frequency data
+            if (detection.frequency !== null && detection.spectral_features) {
+                updateHarmonicChart(detection.spectral_features);
+            }
+            
+            // Add to detections list
+            addDetectionToUI(detection);
+        }
+
+        function addDetectionToUI(detection) {
+            // Remove empty state if it exists
+            const emptyState = detectionsList.querySelector('.empty-state');
+            if (emptyState && detections.length > 0) {
+                detectionsList.removeChild(emptyState);
+            }
+            
+            const time = new Date(detection.timestamp).toLocaleTimeString();
+            const confidence = Math.round(detection.confidence * 100);
+            const freq = detection.frequency ? Math.round(detection.frequency) : 'N/A';
+            const droneType = detection.drone_type || (detection.is_drone ? 'Drone' : 'Noise');
+            
+            const detectionEl = document.createElement('div');
+            detectionEl.className = `detection ${detection.is_drone ? (detection.is_shaheed ? 'shaheed' : 'drone') : 'non-drone'}`;
+            
+            detectionEl.innerHTML = `
+                <div class="detection-time">${time}</div>
+                <div class="detection-info">
+                    <span class="detection-type">${droneType}</span>
+                    ${detection.is_shaheed ? '<span class="shaheed-badge">SHAHEED</span>' : ''}
+                    <span class="detection-frequency">${freq}Hz</span>
+                    ${detection.spectral_features ? 
+                        `<i class="fas fa-chart-bar spectral-details" 
+                           title="Spectral Details" 
+                           data-features='${JSON.stringify(detection.spectral_features)}'></i>` : 
+                        ''}
+                </div>
+                <div class="detection-confidence">
+                    <div class="confidence-bar" style="--confidence: ${confidence}%"></div>
+                    <span class="confidence-value">${confidence}%</span>
+                </div>
+            `;
+            
+            detectionsList.insertBefore(detectionEl, detectionsList.firstChild);
+            
+            // Add click handler for spectral details
+            const detailsIcon = detectionEl.querySelector('.spectral-details');
+            if (detailsIcon) {
+                detailsIcon.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    showSpectralDetails(JSON.parse(detailsIcon.dataset.features));
+                });
+            }
+            
+            // Limit to 50 items
+            if (detectionsList.children.length > 50) {
+                detectionsList.removeChild(detectionsList.lastChild);
+            }
+        }
+
+        function showDroneAlert(detection) {
+            const confidence = Math.round(detection.confidence * 100);
+            const freq = detection.frequency ? Math.round(detection.frequency) : 'N/A';
+            
+            // Update alert type
+            const alertType = document.getElementById('alertType');
+            if (detection.is_shaheed) {
+                alertType.textContent = "SHAHEED DRONE DETECTED!";
+                droneAlert.classList.add('shaheed');
+            } else {
+                alertType.textContent = "DRONE DETECTED!";
+                droneAlert.classList.remove('shaheed');
+            }
+            
+            alertDetails.textContent = `Confidence: ${confidence}% at ${freq}Hz`;
+            droneAlert.style.display = 'flex';
+            
+            setTimeout(() => {
+                droneAlert.style.display = 'none';
+            }, 10000);
+        }
+        function updateCharts(detection) {
+            // Confidence chart
+            confidenceChart.data.datasets[0].data.push({
+                x: new Date(detection.timestamp).getTime(),
+                y: detection.confidence
+            });
+            confidenceChart.update('quiet');
+            
+            // Frequency chart - use actual spectral features if available
+            if (detection.spectral_features && detection.spectral_features.top_frequencies) {
+                const freqData = Array(100).fill(0);
+                detection.spectral_features.top_frequencies.forEach((freq, i) => {
+                    const bin = Math.min(99, Math.floor(freq / 5));
+                    const magnitude = detection.spectral_features.top_magnitudes ?
+                        detection.spectral_features.top_magnitudes[i] / 500 : // Normalize if magnitudes exist
+                        0.5; // Default value
+                    freqData[bin] = Math.max(freqData[bin], magnitude);
+                });
+                frequencyChart.data.datasets[0].data = freqData;
+                frequencyChart.update('quiet');
+                
+                // Update harmonic chart if we have frequencies
+                updateHarmonicChart(detection.spectral_features);
+            }
+        }
+
+        // Update system status
+        function updateStatus(isActive, text) {
+            statusIndicator.className = isActive ? 'status-indicator active' : 'status-indicator inactive';
+            statusText.textContent = text;
+        }
+
+        // Update current time
+        function updateCurrentTime() {
+            const now = new Date();
+            currentTimeEl.textContent = now.toLocaleTimeString();
+            
+            // Update uptime
+            const uptime = new Date(now - startTime);
+            const hours = uptime.getUTCHours().toString().padStart(2, '0');
+            const minutes = uptime.getUTCMinutes().toString().padStart(2, '0');
+            const seconds = uptime.getUTCSeconds().toString().padStart(2, '0');
+            systemUptimeEl.textContent = `${hours}:${minutes}:${seconds}`;
+            
+            setTimeout(updateCurrentTime, 1000);
+        }
+
+        
+
+
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const host = window.location.host;
+            const wsUrl = `${protocol}//${host}/ws/detections`;
+            
+            websocket = new WebSocket(wsUrl);
+            
+            websocket.onopen = () => {
+                console.log('WebSocket connected');
+                updateStatus(true, 'Connected');
+            };
+            
+            websocket.onclose = () => {
+                console.log('WebSocket disconnected');
+                updateStatus(false, 'Disconnected');
+                setTimeout(connectWebSocket, 3000);
+            };
+            
+            websocket.onerror = (error) => {
+                console.error('WebSocket error:', error);
+                updateStatus(false, 'Connection error');
+            };
+            
+            websocket.onmessage = (event) => {
+                try {
+                    const message = JSON.parse(event.data);
+                    handleWebSocketMessage(message);
+                } catch (error) {
+                    console.error('Error parsing WebSocket message:', error);
+                }
+            };
+        }
+
+        function handleWebSocketMessage(message) {
+            switch (message.type) {
+                case 'connection':
+                    sessionId = message.session_id;
+                    updateStatus(true, 'Live Monitoring');
+                    break;
+                    
+                case 'detection':
+                    handleDetection(message.data);
+                    break;
+                    
+                case 'audio_data':
+                    // Update audio visualization with received data
+                    updateAudioWaveform(message.data);
+                    break;
+                    
+                case 'keepalive':
+                    // Just to keep connection alive
+                    break;
+                    
+                default:
+                    console.log('Unknown message type:', message.type);
+            }
+        }
+
+        function updateAudioWaveform(audioData) {
+            if (!isListening) return;
+            
+            // Update waveform chart
+            const waveformPoints = Array.from(audioData)
+                .filter((_, i) => i % 10 === 0) // Downsample for performance
+                .map((val, i) => ({x: i, y: val}));
+            
+            audioWaveformChart.data.datasets[0].data = waveformPoints;
+            audioWaveformChart.update('none');
+        }
+
+        function processAudio() {
+            if (!isProcessingAudio || !audioAnalyser) return;
+            
+            // Get time domain data
+            audioAnalyser.getFloatTimeDomainData(audioDataArray);
+            
+            // Update waveform chart
+            const waveformData = Array.from(audioDataArray)
+                .filter((_, i) => i % 10 === 0) // Downsample for performance
+                .map((val, i) => ({x: i, y: val}));
+            audioWaveformChart.data.datasets[0].data = waveformData;
+            audioWaveformChart.update('none');
+            
+            // Get frequency data
+            const freqData = new Float32Array(audioAnalyser.frequencyBinCount);
+            audioAnalyser.getFloatFrequencyData(freqData);
+            
+            // Convert to amplitude values (0-1 range)
+            const normalizedData = Array.from(freqData).map(val => {
+                // Convert from dB to linear scale (0-1)
+                return Math.pow(10, val / 20);
+            });
+            
+            // Update frequency chart
+            const binsToShow = Math.min(normalizedData.length, frequencyChart.data.datasets[0].data.length);
+            for (let i = 0; i < binsToShow; i++) {
+                frequencyChart.data.datasets[0].data[i] = normalizedData[i] || 0;
+            }
+            frequencyChart.update('none');
+            
+            // Continue processing
+            requestAnimationFrame(processAudio);
+        }
+
+    async function startListening() {
+        try {
+            console.log('Attempting to start listening...');
+            
+            // Request backend to start listening
+            const response = await fetch('/start_listening', {
+                method: 'POST'
+            });
+            const data = await response.json();
+            
+            if (data.status === 'listening') {
+                console.log('Backend listening started');
+                isListening = true;
+                sessionId = data.session_id;
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+                updateStatus(true, 'Live Monitoring');
+                
+                // Initialize Web Audio API
+                try {
+                    console.log('Initializing audio context...');
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    audioAnalyser = audioContext.createAnalyser();
+                    audioAnalyser.fftSize = 2048;
+                    
+                    console.log('Requesting microphone access...');
+                    const stream = await navigator.mediaDevices.getUserMedia({ 
+                        audio: {
+                            echoCancellation: false,
+                            noiseSuppression: false,
+                            autoGainControl: false
+                        } 
+                    });
+                    console.log('Microphone access granted');
+                    
+                    microphone = audioContext.createMediaStreamSource(stream);
+                    
+                    // Create processor for audio data
+                    processorNode = audioContext.createScriptProcessor(2048, 1, 1);
+                    
+                    // Connect nodes
+                    microphone.connect(audioAnalyser);
+                    audioAnalyser.connect(processorNode);
+                    processorNode.connect(audioContext.destination);
+                    
+                    // Process audio data
+                    processorNode.onaudioprocess = (e) => {
+                        if (!isListening) return;
+                        
+                        const inputData = e.inputBuffer.getChannelData(0);
+                        console.log('Audio samples:', inputData.slice(0, 5)); // First 5 samples
+                        
+                        // Send to server if needed
+                        if (websocket && websocket.readyState === WebSocket.OPEN) {
+                            websocket.send(JSON.stringify({
+                                type: 'audio_data',
+                                data: Array.from(inputData)
+                            }));
+                        }
+                        
+                        // Update local visualization
+                        updateLocalVisualization(inputData);
+                    };
+                    
+                    console.log('Audio processing setup complete');
+                    isProcessingAudio = true;
+                    
+                } catch (error) {
+                    console.error('Audio initialization error:', error);
+                    alert('Microphone access denied or audio processing error: ' + error.message);
+                    stopListening();
+                }
+            }
+        } catch (error) {
+            console.error('Error starting listening:', error);
+            updateStatus(false, 'Connection error');
+        }
+    }
+
+        async function stopListening() {
+            try {
+                // Request backend to stop listening
+                const response = await fetch('/stop_listening', {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                
+                if (data.status === 'stopped') {
+                    isListening = false;
+                    isProcessingAudio = false;
+                    startBtn.disabled = false;
+                    stopBtn.disabled = true;
+                    updateStatus(true, 'Connected (Idle)');
+                    
+                    // Clean up audio resources
+                    if (processorNode) {
+                        processorNode.disconnect();
+                        processorNode = null;
+                    }
+                    if (microphone) {
+                        microphone.disconnect();
+                        microphone = null;
+                    }
+                    if (audioContext) {
+                        await audioContext.close();
+                        audioContext = null;
+                        audioAnalyser = null;
+                    }
+                    
+                    // Clear audio charts
+                    audioWaveformChart.data.datasets[0].data = [];
+                    frequencyChart.data.datasets[0].data = Array(100).fill(0);
+                    audioWaveformChart.update();
+                    frequencyChart.update();
+                }
+            } catch (error) {
+                console.error('Error stopping listening:', error);
+                updateStatus(false, 'Connection error');
+            }
+        }
+        // Event Listeners
+        clearDetectionsBtn.addEventListener('click', () => {
+            detections = [];
+            detectionTimestamps = [];
+            detectionsList.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-microphone"></i>
+                    <p>Listening for drone sounds...</p>
+                </div>
+            `;
+            totalDetectionsEl.textContent = '0';
+            detectionRateEl.textContent = '0';
+            avgConfidenceEl.textContent = '0%';
+            
+            // Reset charts
+            confidenceChart.data.datasets[0].data = [];
+            frequencyChart.data.datasets[0].data = Array(100).fill(0);
+            audioWaveformChart.data.datasets[0].data = [];
+            harmonicChart.data.datasets[0].data = [];
+            
+            confidenceChart.update();
+            frequencyChart.update();
+            audioWaveformChart.update();
+            harmonicChart.update();
+        });
+
+        resetConfidenceBtn.addEventListener('click', () => {
+            confidenceChart.data.datasets[0].data = [];
+            confidenceChart.update();
+        });
+
+        startBtn.addEventListener('click', startListening);
+        stopBtn.addEventListener('click', stopListening);
+
+        // Initialize
+        connectWebSocket();
+        updateCurrentTime();
+        updateStatus(false, 'Connecting...');
+        fetchHistoricalDetections();
+
+    </script>
+</body>
+</html>
