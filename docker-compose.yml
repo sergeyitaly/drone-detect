@@ -3,18 +3,18 @@ version: '3.8'
 services:
   db:
     image: postgres:16
-    env_file: .env  # Load all environment variables
+    env_file: .env
     environment:
-      POSTGRES_PASSWORD: ${POSTGRES_ROOT_PASSWORD}  # Root password
-      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_USER: postgres  
+      POSTGRES_PASSWORD: ${POSTGRES_ROOT_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
     ports:
-      - "5433:5432"
+      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./init.sh:/docker-entrypoint-initdb.d/init.sh
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 5

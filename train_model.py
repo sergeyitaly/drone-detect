@@ -156,15 +156,12 @@ def main():
     print("\nLoading non-drone samples...")
     non_drone_feats, non_drone_labels = load_audio_files(NON_DRONE_DIR, label=0)
     
-    # Combine features and labels
-    all_features = drone_feats + shaheed_feats + non_drone_feats
-    all_labels = drone_labels + shaheed_labels + non_drone_labels
-    
-    if not all_features:
-        print("\nError: No features extracted from any category")
-        print(f"- Drone samples: {len(drone_feats)}")
-        print(f"- Shaheed samples: {len(shaheed_feats)}")
-        print(f"- Non-drone samples: {len(non_drone_feats)}")
+    # Verify we have enough samples
+    if len(drone_feats) < 10 or len(shaheed_feats) < 10 or len(non_drone_feats) < 10:
+        print("\nError: Not enough training samples")
+        print(f"- Drone samples: {len(drone_feats)} (need at least 10)")
+        print(f"- Shaheed samples: {len(shaheed_feats)} (need at least 10)")
+        print(f"- Non-drone samples: {len(non_drone_feats)} (need at least 10)")
         return
     
     # Create and evaluate drone detector
@@ -178,8 +175,8 @@ def main():
     print("\nEvaluating Drone Detector...")
     drone_accuracy = evaluate_detector(
         drone_detector,
-        all_features,
-        all_labels,
+        drone_feats + non_drone_feats + shaheed_feats,
+        [1]*len(drone_feats) + [0]*len(non_drone_feats) + [0]*len(shaheed_feats),
         "DroneDetector"
     )
     
@@ -194,8 +191,8 @@ def main():
     print("\nEvaluating Shaheed Detector...")
     shaheed_accuracy = evaluate_detector(
         shaheed_detector,
-        all_features,
-        [1 if x in shaheed_feats else 0 for x in all_features],  # 1 only for shaheed
+        shaheed_feats + drone_feats + non_drone_feats,
+        [1]*len(shaheed_feats) + [0]*len(drone_feats) + [0]*len(non_drone_feats),
         "ShaheedDetector"
     )
     
