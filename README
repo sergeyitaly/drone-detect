@@ -18,3 +18,13 @@ curl -X DELETE http://localhost:8000/detections/
 curl -X POST "http://localhost:8000/calibrate_noise?duration=5"
 
 <link rel="stylesheet" href="/static/css/style.css">
+
+
+ALTER TABLE detection_events ALTER COLUMN spectral_features TYPE JSON;
+
+ALTER TABLE jamming_events
+ALTER COLUMN affected_systems TYPE JSON
+USING array_to_json(affected_systems);
+
+alembic revision --autogenerate -m "initial migration"
+alembic upgrade head

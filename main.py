@@ -5,12 +5,11 @@ import sounddevice as sd
 from fastapi import FastAPI, HTTPException, WebSocket, Depends, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from datetime import datetime
 import soundfile as sf
 import noisereduce as nr
 from scipy import signal
 import joblib
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean, Float, text
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean, Float, text, inspect
 #from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
@@ -21,22 +20,29 @@ from threading import Thread
 import psutil
 from concurrent.futures import ThreadPoolExecutor
 import queue
-from typing import Optional
+from typing import Optional, Dict
 from fastapi.templating import Jinja2Templates
 from fastapi import Request
 from fastapi.staticfiles import StaticFiles
-from detector_models import load_models, MLDroneDetector, MLShaheedDetector, BaseDetector, preprocess_audio, extract_features, load_models
+from pathlib import Path
+from detector_models import load_models, preprocess_audio, extract_features, load_models
 import time
 import sys
 from dotenv import load_dotenv
-import webrtcvad  # For voice activity detection
+import webrtcvad  # For voice activity n
 from fastapi import Body 
 import threading 
 from uuid import uuid4
 import webrtcvad
 import collections
 import threading
-from typing import Optional, List
+from typing import Optional, List, Any
+from datetime import datetime, timedelta
+from sqlalchemy.sql import func
+from datetime import datetime
+from models import *
+import re
+
 
 VAD_AGGRESSIVENESS = 3  # Most aggressive setting
 VOICE_ACTIVITY_FRAME_MS = 30  # milliseconds
@@ -62,8 +68,14 @@ NOISE_REDUCTION_AGGRESSION = 0.99  # More aggressive reduction for fans
 DRONE_DETECTOR = None
 SHAHEED_DETECTOR = None
 DRONE_DETECTOR, SHAHEED_DETECTOR = load_models()
+
+app = FastAPI()
+
 DATABASE_URL = os.getenv("DATABASE_URL")
 engine = create_engine(DATABASE_URL)
+with engine.connect() as conn:
+    conn.execute(text("CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\""))
+    conn.commit()
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
@@ -80,21 +92,6 @@ AMBIENT_NOISE_PROFILE = None
 thread_message_queue = queue.Queue()
 executor = ThreadPoolExecutor(max_workers=1)
 
-class DetectionEvent(Base):
-    __tablename__ = "detection_events"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    timestamp = Column(DateTime, default=datetime.utcnow)
-    confidence = Column(Float)  
-    is_drone = Column(Boolean)
-    is_shaheed = Column(Boolean, nullable=True)
-    frequency = Column(Float)
-    model_version = Column(String)
-    audio_sample_path = Column(String)
-    session_id = Column(String)
-    drone_type = Column(String)
-    spectral_features = Column(String)
-
 Base.metadata.create_all(bind=engine)
 
 def get_db():
@@ -103,10 +100,7 @@ def get_db():
         yield db
     finally:
         db.close()
-
-app = FastAPI()
-app.mount("/static", StaticFiles(directory="static"), name="static")
-templates = Jinja2Templates(directory="templates")
+        
 
 app.add_middleware(
     CORSMiddleware,
@@ -114,17 +108,11 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    #allow_websockets=["*"],
 )
+templates = Jinja2Templates(directory="templates")
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
-class DetectionResult(BaseModel):
-    timestamp: datetime
-    confidence: float
-    is_drone: bool
-    is_shaheed: Optional[bool] = None
-    frequency: Optional[float] = None
-    session_id: str = None
-    drone_type: str = None
-    spectral_features: dict = None
 
 # Audio Processing Functions
 def butter_bandpass(lowcut, highcut, fs, order=5):
@@ -461,24 +449,43 @@ async def configure_noise_suppression(
     NOISE_SUPPRESSOR.vad.vad.set_mode(min(3, max(0, aggressiveness)))
     return {"status": "updated", "aggressiveness": aggressiveness, "voice_threshold": voice_threshold}
 
-# Modify your startup_event to initialize everything automatically
+
+def initialize_database():
+    # First ensure UUID extension exists
+    with engine.connect() as conn:
+        conn.execute(text("CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\""))
+        conn.commit()
+    
+    # Then create all tables
+    Base.metadata.create_all(bind=engine)
+    
+    # Verify creation
+    inspector = inspect(engine)
+    existing_tables = inspector.get_table_names()
+    print("Existing tables:", existing_tables)
+    
+    if 'sessions' not in existing_tables:
+        raise RuntimeError("Failed to create sessions table!")
+    
+# Modified startup_event with proper initialization sequence
 @app.on_event("startup")
 async def startup_event():
+    # 1. First initialize database
+    initialize_database()
+    
+    # 2. Run other initializations in background thread
     def run_initializations():
         try:
-            # Initialize database tables
-            Base.metadata.create_all(bind=engine)
-            print("Database tables initialized/verified")
-            # 1. Initialize noise suppressor with default settings
+            # Initialize noise suppressor with default settings
             global NOISE_SUPPRESSOR
             NOISE_SUPPRESSOR = ActiveNoiseSuppressor()
             print("Noise suppressor initialized with default settings")
             
-            # 2. Configure noise suppression (you can adjust these default values)
+            # Configure noise suppression
             NOISE_SUPPRESSOR.vad.vad.set_mode(3)  # Most aggressive mode
             print(f"Noise suppression configured with aggressiveness: 3")
             
-            # 3. Run your existing fan calibration
+            # Load or create fan noise profile
             load_fan_noise_profile()
             
             if FAN_NOISE_PROFILE is None:
@@ -498,51 +505,89 @@ async def startup_event():
     # Run all initializations in background thread
     Thread(target=run_initializations, daemon=True).start()
 
+@app.get("/sessions/current", response_model=Optional[SessionResponse])
+async def get_current_session(db: Session = Depends(get_db)):
+    db_session = db.query(Session).filter(
+        Session.is_active == True
+    ).order_by(Session.created_at.desc()).first()
+    
+    if not db_session:
+        return None  # Instead of raising 404
+    
+    return {
+        "session_id": db_session.id,
+        "status": "active",
+        "created_at": db_session.created_at,
+        "sensitivity": db_session.sensitivity,
+        "frequency_range": db_session.frequency_range
+    }
+
+
+# Replace the websocket endpoint with this fixed version
 @app.websocket("/ws/detections")
 async def websocket_endpoint(websocket: WebSocket):
-    global current_websocket, is_listening, current_session_id  # Add globals here
+    allowed_origins = [
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "http://localhost", 
+        "http://127.0.0.1"
+    ]
+    origin = websocket.headers.get("origin")
+
+    if origin and origin not in allowed_origins:
+        await websocket.close(code=1008)  # Policy Violation
+        return
     
     await websocket.accept()
-    current_websocket = websocket
+    global current_websocket, current_session_id
     
     try:
-        # Send initial connection status
+        # Get or create session ID in a thread-safe way
+        with session_lock:
+            if current_session_id is None:
+                current_session_id = str(uuid4())
+            session_id = current_session_id
+            
+        current_websocket = websocket
+        
+        # Initial connection message
         await websocket.send_json({
             "type": "connection",
-            "session_id": current_session_id,
-            "status": "active" if is_listening else "idle",
-            "message": "WebSocket connection established"
+            "status": "connected",
+            "session_id": session_id
         })
-
+        
         while True:
             try:
                 data = await asyncio.wait_for(websocket.receive_json(), timeout=30.0)
                 
                 if data.get("type") == "ping":
                     await websocket.send_json({"type": "pong"})
+                    
                 elif data.get("type") == "start_listening":
-                    # Start new session
+                    # Handle session start with lock
                     with session_lock:
-                        current_session_id = str(uuid.uuid4())
+                        current_session_id = str(uuid4())
                         is_listening = True
+                        session_id = current_session_id
                     
                     await websocket.send_json({
                         "type": "session",
-                        "session_id": current_session_id,
-                        "status": "started"
+                        "status": "started",
+                        "session_id": session_id
                     })
                     
             except asyncio.TimeoutError:
                 await websocket.send_json({"type": "keepalive"})
                 
     except WebSocketDisconnect:
-        print("Client disconnected")
+        print(f"Client disconnected: {websocket.client}")
     except Exception as e:
         print(f"WebSocket error: {e}")
     finally:
         if current_websocket == websocket:
             current_websocket = None
-
+            
 @app.post("/start_listening")
 async def start_listening():
     global is_listening, current_session_id, audio_stream
@@ -620,137 +665,134 @@ async def get_session_detections(session_id: str, db: Session = Depends(get_db))
         "drone_type": detection.drone_type,
         "spectral_features": json.loads(detection.spectral_features) if detection.spectral_features else None
     } for detection in detections]
-# Session Models
-class SessionCreate(BaseModel):
-    sensitivity: float
-    frequency_range: List[float]
 
-class SessionResponse(BaseModel):
-    session_id: str
-    status: str
-    created_at: datetime
-    sensitivity: Optional[float] = None
-    frequency_range: Optional[List[float]] = None
 
-class SessionStopResponse(BaseModel):
-    session_id: str
-    status: str
-    stopped_at: datetime
-
-# Database Model (add this to your models)
-from sqlalchemy import Column, String, Float, JSON, DateTime, Boolean
-from sqlalchemy.sql import func
-
-class Session(Base):
-    __tablename__ = "sessions"
-
-    id = Column(String, primary_key=True, index=True)
-    sensitivity = Column(Float)
-    frequency_range = Column(JSON)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    stopped_at = Column(DateTime(timezone=True), nullable=True)
-    is_active = Column(Boolean, default=True)
-
-# Session Endpoints
-@app.post("/sessions", response_model=SessionResponse)
+@app.post("/sessions/", response_model=SessionResponse)
 async def create_session(
-    session_data: SessionCreate, 
+    session_data: dict = Body(...),
     db: Session = Depends(get_db)
 ):
-    """Create a new detection session"""
-    session_id = str(uuid4())
+    global current_session_id, is_listening, audio_stream
     
-    # Create session in database
-    db_session = Session(
-        id=session_id,
-        sensitivity=session_data.sensitivity,
-        frequency_range=session_data.frequency_range
-    )
-    db.add(db_session)
-    db.commit()
-    db.refresh(db_session)
-    
-    return {
-        "session_id": session_id,
-        "status": "created",
-        "created_at": db_session.created_at,
-        "sensitivity": db_session.sensitivity,
-        "frequency_range": db_session.frequency_range
-    }
+    try:
+        new_session = Session(
+            id=str(uuid.uuid4()),
+            is_active=True,
+            sensitivity=session_data.get('sensitivity'),
+            frequency_range=session_data.get('frequency_range'),
+            created_at=func.now()
+        )
+        
+        db.add(new_session)
+        db.commit()
+        db.refresh(new_session)
 
+        current_session_id = new_session.id
+        is_listening = True
+        
+        if audio_stream is None:
+            audio_stream = sd.InputStream(
+                callback=audio_callback,
+                channels=CHANNELS,
+                samplerate=SAMPLE_RATE,
+                blocksize=int(SAMPLE_RATE * DURATION),
+                dtype='float32'
+            )
+            audio_stream.start()
+        
+        return {
+            "session_id": new_session.id,
+            "status": "active",
+            "created_at": new_session.created_at,
+            "sensitivity": new_session.sensitivity,
+            "frequency_range": new_session.frequency_range
+        }
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+            
 @app.post("/sessions/{session_id}/stop", response_model=SessionStopResponse)
 async def stop_session(
     session_id: str, 
     db: Session = Depends(get_db)
 ):
-    """Stop an active session"""
+    """Stop an active session with cleanup"""
     db_session = db.query(Session).filter(
         Session.id == session_id,
         Session.is_active == True
     ).first()
     
     if not db_session:
-        raise HTTPException(
-            status_code=404, 
-            detail="Active session not found"
-        )
+        raise HTTPException(status_code=404, detail="Active session not found")
     
-    db_session.is_active = False
-    db_session.stopped_at = func.now()
-    db.commit()
-    
-    return {
-        "session_id": session_id,
-        "status": "stopped",
-        "stopped_at": db_session.stopped_at
-    }
+    try:
+        db_session.is_active = False
+        db_session.stopped_at = func.now()
+        db.commit()
+        
+        # Update global state
+        global current_session_id
+        if current_session_id == session_id:
+            current_session_id = None
+        
+        return {
+            "session_id": session_id,
+            "status": "stopped",
+            "stopped_at": db_session.stopped_at,
+            "duration_seconds": db_session.duration
+        }
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to stop session: {str(e)}")
 
-@app.get("/sessions/current", response_model=SessionResponse)
-async def get_current_session(db: Session = Depends(get_db)):
-    """Get the current active session"""
-    db_session = db.query(Session).filter(
-        Session.is_active == True
-    ).order_by(Session.created_at.desc()).first()
-    
-    if not db_session:
-        raise HTTPException(
-            status_code=404, 
-            detail="No active sessions found"
-        )
-    
-    return {
-        "session_id": db_session.id,
-        "status": "active",
-        "created_at": db_session.created_at,
-        "sensitivity": db_session.sensitivity,
-        "frequency_range": db_session.frequency_range
-    }
-
-@app.get("/sessions", response_model=List[SessionResponse])
-async def list_sessions(
-    active_only: bool = False,
-    limit: int = 100,
+@app.websocket("/ws/session/{session_id}")
+async def websocket_session(
+    websocket: WebSocket,
+    session_id: str,
     db: Session = Depends(get_db)
 ):
-    """List all sessions with optional filtering"""
-    query = db.query(Session)
+    """WebSocket connection for real-time session updates"""
+    await websocket.accept()
     
-    if active_only:
-        query = query.filter(Session.is_active == True)
+    # Verify session exists
+    db_session = db.query(Session).filter(
+        Session.id == session_id
+    ).first()
     
-    sessions = query.order_by(
-        Session.created_at.desc()
-    ).limit(limit).all()
+    if not db_session:
+        await websocket.close(code=1008, reason="Session not found")
+        return
     
-    return [{
-        "session_id": s.id,
-        "status": "active" if s.is_active else "stopped",
-        "created_at": s.created_at,
-        "sensitivity": s.sensitivity,
-        "frequency_range": s.frequency_range
-    } for s in sessions]
+    try:
+        # Send initial session state
+        await websocket.send_json({
+            "type": "session_state",
+            "data": SessionResponse.model_validate(db_session).model_dump()
+        })
+        
+        while True:
+            data = await websocket.receive_json()
+            
+            if data.get("type") == "ping":
+                await websocket.send_json({"type": "pong"})
+                
+            elif data.get("type") == "update_settings":
+                # Handle settings updates
+                db_session.sensitivity = data.get("sensitivity", db_session.sensitivity)
+                db.commit()
+                await websocket.send_json({
+                    "type": "settings_updated",
+                    "sensitivity": db_session.sensitivity
+                })
+                
+    except WebSocketDisconnect:
+        print(f"Client disconnected from session {session_id}")
+    except Exception as e:
+        print(f"WebSocket error: {str(e)}")
+    finally:
+        await websocket.close()
 
-# Updated Detection Endpoints
 @app.get("/detections", response_model=List[DetectionResult])
 async def get_detections(
     session_id: Optional[str] = None,
@@ -799,7 +841,363 @@ async def delete_all_detections(db: Session = Depends(get_db)):
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/")
+# Database operations
+def store_gnss_data(db: Session, data: GNSSDataSchema) -> GNSSDataSchema:
+    # Convert Pydantic schema to SQLAlchemy model
+    db_data = GNSSData(**data.model_dump())  # Changed from dict() to model_dump()
+    db.add(db_data)
+    db.commit()
+    db.refresh(db_data)
+    # Convert back to Pydantic schema before returning
+    return GNSSDataSchema.model_validate(db_data)  # Changed from from_orm
+
+
+def get_previous_gnss_data(db: Session, device_id: str = None) -> GNSSDataSchema:
+    # Query using SQLAlchemy model
+    query = db.query(GNSSData)
+    if device_id:
+        query = query.filter(GNSSData.device_id == device_id)
+    result = query.order_by(GNSSData.timestamp.desc()).first()
+    
+    if not result:
+        return GNSSDataSchema(
+            timestamp=datetime.now(),
+            gps_sats=0,
+            glonass_sats=0,
+            galileo_sats=0,
+            beidou_sats=0,
+            snr_values={},
+            device_id=device_id
+        )
+    # Convert SQLAlchemy model to Pydantic schema
+    return GNSSDataSchema.model_validate(result)
+
+def query_jamming_events(db: Session, hours: int = 24):
+    return db.query(JammingEvent).filter(
+        JammingEvent.start_time >= datetime.now() - timedelta(hours=hours)
+    ).all()
+
+def create_security_incident(
+    db: Session,
+    incident_type: str,
+    severity: float,
+    description: str
+):
+    db_event = JammingEvent(
+        start_time=datetime.now(),
+        severity=severity,
+        affected_systems=["all"],
+        confidence=severity,
+        description=description
+    )
+    db.add(db_event)
+    db.commit()
+    db.refresh(db_event)
+    return db_event
+
+# Jamming analysis
+def calculate_confidence(sat_drop: bool, low_snr: bool, inconsistent: bool) -> float:
+    """Calculate jamming confidence score (0-1)"""
+    confidence = 0.0
+    if sat_drop:
+        confidence += 0.6
+    if low_snr:
+        confidence += 0.3
+    if inconsistent:
+        confidence += 0.3
+    return min(1.0, confidence)
+
+def analyze_jamming(db: Session, data: GNSSDataSchema) -> dict:
+    """Analyze GNSS data for potential jamming"""
+    prev_data = get_previous_gnss_data(db, data.device_id)
+    
+    # Rule 1: Sudden satellite drop
+    sat_drop = any([
+        (prev_data.gps_sats - data.gps_sats) > 5,
+        (prev_data.glonass_sats - data.glonass_sats) > 5,
+    ])
+    
+    # Rule 2: Low SNR across systems
+    low_snr = all(
+        np.mean(list(system_snr.values())) < 25 
+        for system_snr in data.snr_values.values()
+        if system_snr
+    )
+    
+    # Rule 3: Signal inconsistency
+    snr_stddev = {
+        system: np.std(list(snr.values())) 
+        for system, snr in data.snr_values.items()
+    }
+    inconsistent = any(std > 15 for std in snr_stddev.values())
+    
+    return {
+        "is_jamming": sat_drop or (low_snr and inconsistent),
+        "confidence": calculate_confidence(sat_drop, low_snr, inconsistent),
+        "metrics": {
+            "satellite_drop": sat_drop,
+            "low_snr": low_snr,
+            "inconsistent_signals": inconsistent
+        }
+    }
+
+
+# Alert system (would integrate with your existing WebSocket system)
+async def update_detection_parameters(params: dict):
+    """Update drone detection parameters when jamming is detected"""
+    # This would interface with your existing detection system
+    print(f"Updating detection parameters: {params}")
+
+async def broadcast_alert(message: str):
+    """Broadcast alert to connected clients"""
+    # This would use your existing WebSocket implementation
+    print(f"ALERT: {message}")
+
+async def broadcast_jamming_alert():
+    """Broadcast jamming alert to connected clients"""
+    await broadcast_alert("GNSS jamming detected - increased drone alert level")
+
+# API Endpoints
+@app.post("/gnss/register")
+async def register_gnss_device(
+    device: GNSSDevice,
+    db: Session = Depends(get_db)
+):
+    """Register a new GNSS device"""
+    # In a real implementation, you would store device info
+    return {"status": "registered", "device_id": device.device_id}
+
+def parseNMEASentence(sentence: str) -> Optional[Dict[str, Any]]:
+    """Parse NMEA sentence with strict validation and error handling."""
+    if not sentence or not isinstance(sentence, str):
+        return None
+        
+    # More comprehensive NMEA format validation
+    if not re.match(r'^\$[A-Z]{2}[A-Z]{3},.*(\*[0-9A-F]{2})?$', sentence):
+        return None
+
+    try:
+        # Checksum validation
+        if '*' in sentence:
+            content, checksum_str = sentence[1:].split('*', 1)
+            calculated_checksum = 0
+            for ch in content:
+                calculated_checksum ^= ord(ch)
+            try:
+                checksum = int(checksum_str.strip(), 16)
+                if checksum != calculated_checksum:
+                    return None
+            except ValueError:
+                return None
+        else:
+            content = sentence[1:]
+
+        parts = content.split(',')
+        if len(parts) < 4:  # Minimum fields for GSV
+            return None
+
+        talker = parts[0][:2]
+        sentence_type = parts[0][2:]
+
+        # Only process GSV messages
+        if sentence_type != 'GSV':
+            return None
+
+        system_map = {
+            'GP': 'gps',
+            'GL': 'glonass', 
+            'GA': 'galileo',
+            'BD': 'beidou',
+            'GN': 'gnss'
+        }
+
+        system = system_map.get(talker)
+        if not system:
+            return None
+
+        # Validate and convert numeric fields
+        try:
+            total_msgs = int(parts[1])
+            msg_num = int(parts[2])
+            total_sats = int(parts[3])
+            
+            # Basic validation of GSV message numbers
+            if not (1 <= msg_num <= total_msgs):
+                return None
+        except (ValueError, IndexError):
+            return None
+
+        # Extract SNR values more safely
+        snr = []
+        for i in range(7, min(len(parts), 31), 4):
+            try:
+                snr_value = int(parts[i])
+                if 0 < snr_value <= 99:  # Valid SNR range
+                    snr.append(snr_value)
+            except (ValueError, IndexError):
+                continue
+
+        return {
+            'type': 'satellite_data',
+            'system': system,
+            'total_sats': total_sats,
+            'snr': snr,
+            'timestamp': datetime.utcnow(),
+            'msg_num': msg_num,
+            'total_msgs': total_msgs
+        }
+
+    except Exception as e:
+        # Consider using proper logging here
+        print(f"NMEA parsing error: {str(e)}")
+        return None
+        
+@app.post("/gnss/data")
+async def receive_gnss_raw_data(
+    raw_nmea: str = Body(..., embed=True, max_length=256),  # Add length limit
+    db: Session = Depends(get_db)
+):
+    if not raw_nmea or len(raw_nmea) > 128:  # Typical NMEA max length
+        return {"status": "error", "reason": "Invalid data length"}
+
+    parsed = parseNMEASentence(raw_nmea.strip())
+    if not parsed or parsed.get('type') != 'satellite_data':
+        return {"status": "ignored", "reason": "Not satellite data or invalid NMEA"}
+
+    try:
+        # Create data model with all systems
+        gnss_data = GNSSDataSchema(
+            gps_sats=len(parsed['snr']) if parsed['system'] == 'gps' else 0,
+            glonass_sats=len(parsed['snr']) if parsed['system'] == 'glonass' else 0,
+            galileo_sats=len(parsed['snr']) if parsed['system'] == 'galileo' else 0,
+            beidou_sats=len(parsed['snr']) if parsed['system'] == 'beidou' else 0,
+            snr_values={parsed['system']: parsed['snr']},
+            raw_nmea=raw_nmea,
+            timestamp=datetime.utcnow(),
+            msg_sequence=f"{parsed['msg_num']}/{parsed['total_msgs']}"  # Track message sequence
+        )
+        stored_data = store_gnss_data(db, gnss_data)
+        jamming_status = analyze_jamming(db, stored_data)
+        if jamming_status.get("is_jamming"):
+            await handle_jamming_event(db, jamming_status)
+            await broadcast_jamming_alert()
+
+        return {
+            "status": "success",
+            "system": parsed['system'],
+            "satellites": len(parsed['snr']),
+            "jamming_status": jamming_status
+        }
+
+    except Exception as e:
+        print(f"Error processing GNSS data: {str(e)}")
+        return {"status": "error", "reason": "Processing failed"}
+
+@app.get("/gnss/jamming-history")
+async def get_jamming_history(
+    hours: int = 24,
+    db: Session = Depends(get_db)
+):
+    """Get historical jamming events"""
+    events = query_jamming_events(db, hours)
+    return {"events": events}
+
+# Jamming event handler
+async def handle_jamming_event(db: Session, jamming_status: dict):
+    """Handle jamming detection event"""
+    # 1. Increase drone detection sensitivity
+    await update_detection_parameters({
+        "audio_sensitivity": 1.5,
+        "harmonic_threshold": 0.4
+    })
+    
+    # 2. Notify all connected clients
+    await broadcast_alert("GNSS jamming detected - increased drone alert level")
+    
+    # 3. Log security event
+    create_security_incident(
+        db=db,
+        incident_type="jamming",
+        severity=jamming_status["confidence"],
+        description="Potential GNSS jamming affecting drone detection"
+    )
+
+@app.websocket("/ws/gnss")
+async def gnss_websocket(websocket: WebSocket, db: Session = Depends(get_db)):
+    await websocket.accept()
+
+    async def send_ping():
+        try:
+            while True:
+                await websocket.send_json({"type": "ping"})
+                await asyncio.sleep(10)
+        except Exception:
+            # If sending ping fails, exit the ping loop (likely disconnect)
+            pass
+
+    ping_task = asyncio.create_task(send_ping())
+
+    try:
+        while True:
+            try:
+                msg = await asyncio.wait_for(websocket.receive_text(), timeout=15)
+                if msg == 'pong':
+                    continue  # just ignore pong
+            except asyncio.TimeoutError:
+                print("GNSS client timeout, disconnecting")
+                await websocket.close()
+                break
+
+            latest_db_data = db.query(GNSSData).order_by(GNSSData.timestamp.desc()).first()
+            if latest_db_data:
+                latest_data = GNSSDataSchema.model_validate(latest_db_data)
+                snr_values = latest_data.snr_values or {}
+
+                payload = {
+                    "type": "gnss_data",
+                    "systems": {
+                        "gps": {"in_view": latest_data.gps_sats, "snr": snr_values.get("gps", [])},
+                        "glonass": {"in_view": latest_data.glonass_sats, "snr": snr_values.get("glonass", [])},
+                        "galileo": {"in_view": latest_data.galileo_sats, "snr": snr_values.get("galileo", [])},
+                        "beidou": {"in_view": latest_data.beidou_sats, "snr": snr_values.get("beidou", [])},
+                    },
+                    "timestamp": latest_data.timestamp.isoformat()
+                }
+            else:
+                payload = {
+                    "type": "gnss_data",
+                    "systems": {
+                        "gps": {"in_view": 0, "snr": []},
+                        "glonass": {"in_view": 0, "snr": []},
+                        "galileo": {"in_view": 0, "snr": []},
+                        "beidou": {"in_view": 0, "snr": []},
+                    },
+                    "timestamp": datetime.utcnow().isoformat(),
+                }
+
+            await websocket.send_json(payload)
+            await asyncio.sleep(5)
+
+    except WebSocketDisconnect:
+        print("GNSS client disconnected")
+    finally:
+        ping_task.cancel()
+
+@app.get("/db-check")
+async def db_check(db: Session = Depends(get_db)):
+    try:
+        result = db.execute(text("SELECT current_database(), current_user, version()"))
+        row = result.fetchone()
+        return {
+            "database": row[0],
+            "user": row[1],
+            "version": row[2],
+            "status": "connected"
+        }
+    except Exception as e:
+        return {"error": str(e), "status": "disconnected"}
+
+@app.api_route("/", methods=["GET", "HEAD"])
 async def read_root(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 

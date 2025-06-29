@@ -3,177 +3,171 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Drone Detection System (Audio Only)</title>
+    <title>Drone Detection System</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1"></script>
     <script src="https://cdn.jsdelivr.net/npm/luxon@3.0.1"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1.2.0"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="/static/css/style.css">
-    <link rel="icon" href="data:,">
 </head>
 <body>
     <div class="app-container">
+        <!-- Header -->
         <header class="app-header">
-            <div class="logo">
-                <i class="fas fa-drone-alt"></i>
-                <h1>Audio-Based Drone Detection</h1>
-            </div>
-            <div class="system-status">
-                <div class="status-indicator connecting" id="statusIndicator"></div>
-                <span class="status-text" id="statusText">Initializing...</span>
-                <div class="current-time" id="currentTime"></div>
-            </div>
+          <div class="logo">
+            <i class="fas fa-drone-alt"></i>
+            <h1>Drone Detection</h1>
+          </div>
+          <div class="system-status">
+            <div class="status-indicator connecting" id="statusIndicator"></div>
+            <span id="statusText">Initializing...</span>
+            <span class="text-mono" id="currentTime"></span>
+          </div>
         </header>
-
-        <div class="controls">
-            <button class="btn btn-primary" id="startBtn">
-                <i class="fas fa-microphone"></i>
-                Start Listening
-            </button>
-            <button class="btn btn-danger" id="stopBtn" disabled>
-                <i class="fas fa-microphone-slash"></i>
-                Stop Listening
-            </button>
-            <button class="btn btn-secondary" id="calibrateBtn">
-                <i class="fas fa-fan"></i>
-                Calibrate Fan Noise
-            </button>
-            <div class="audio-settings">
-                <label for="gainControl">Mic Gain:</label>
-                <input type="range" id="gainControl" min="0" max="2" step="0.1" value="1">
-                <span id="gainValue">1.0</span>
-                
-                <label for="sensitivity">Sensitivity:</label>
-                <input type="range" id="sensitivity" min="0.5" max="2" step="0.1" value="1">
-                <span id="sensitivityValue">1.0</span>
+      
+        <!-- Main Dashboard -->
+        <main class="dashboard-grid">
+          <!-- Detection Panel -->
+          <section class="card detection-panel">
+            <div class="card-header">
+              <h2><i class="fas fa-microphone"></i> Audio Analysis</h2>
+              <div class="controls">
+                <button class="btn btn-primary" id="startBtn">
+                  <i class="fas fa-microphone"></i> Start
+                </button>
+                <button class="btn btn-danger" id="stopBtn" disabled>
+                  <i class="fas fa-microphone-slash"></i> Stop
+                </button>
+                <button class="btn btn-secondary" id="calibrateBtn">
+                  <i class="fas fa-fan"></i> Calibrate
+                </button>
+              </div>
             </div>
-        </div>
-
-        <div class="alert-banner" id="droneAlert" style="display:none;">
-            <i class="fas fa-exclamation-triangle"></i>
-            <span id="alertType">POTENTIAL DRONE DETECTED!</span>
-            <span id="alertDetails">Analyzing audio patterns...</span>
-        </div>
-
-        <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-icon">
-                    <i class="fas fa-wave-square"></i>
+      
+            <div class="card-content">
+              <div class="alert-banner" id="droneAlert" hidden>
+                <i class="fas fa-exclamation-triangle"></i>
+                <span id="alertType">POTENTIAL DRONE DETECTED!</span>
+              </div>
+      
+              <div class="audio-controls">
+                <div class="control-group">
+                  <label>Mic Gain</label>
+                  <div class="control-wrapper">
+                    <input type="range" id="gainControl" min="0" max="2" step="0.1" value="1">
+                    <span class="text-mono" id="gainValue">1.0</span>
+                  </div>
                 </div>
-                <div class="stat-content">
-                    <div class="stat-title">Audio Level</div>
-                    <div class="stat-value" id="audioLevel">- dB</div>
-                    <div class="stat-trend">
-                        <i class="fas fa-volume-up"></i>
-                        <span>Real-time</span>
+                <div class="control-group">
+                  <label>Sensitivity</label>
+                  <div class="control-wrapper">
+                    <input type="range" id="sensitivity" min="0.5" max="2" step="0.1" value="1">
+                    <span class="text-mono" id="sensitivityValue">1.0</span>
+                  </div>
+                </div>
+              </div>
+      
+              <div class="stats-container">
+                <div class="stats-grid">
+                  <div class="stat-card">
+                    <div class="stat-icon">
+                      <i class="fas fa-volume-up"></i>
                     </div>
+                    <div class="stat-info">
+                      <div class="stat-label">Audio Level</div>
+                      <div class="stat-value text-mono">- dB</div>
+                    </div>
+                  </div>
+                  
+                  <div class="stat-card">
+                    <div class="stat-icon">
+                      <i class="fas fa-waveform"></i>
+                    </div>
+                    <div class="stat-info">
+                      <div class="stat-label">Frequency</div>
+                      <div class="stat-value text-mono">- Hz</div>
+                    </div>
+                  </div>
+                  
+                  <div class="stat-card">
+                    <div class="stat-icon">
+                      <i class="fas fa-percent"></i>
+                    </div>
+                    <div class="stat-info">
+                      <div class="stat-label">Confidence</div>
+                      <div class="stat-value text-mono">0%</div>
+                    </div>
+                  </div>
+                  
+                  <div class="stat-card">
+                    <div class="stat-icon">
+                      <i class="fas fa-clock"></i>
+                    </div>
+                    <div class="stat-info">
+                      <div class="stat-label">Duration</div>
+                      <div class="stat-value text-mono">00:02</div>
+                    </div>
+                  </div>
                 </div>
+              </div>
+      
+              <div class="chart-container">
+                <canvas id="frequencyChart"></canvas>
+              </div>
             </div>
-
-            <div class="stat-card">
-                <div class="stat-icon">
-                    <i class="fas fa-chart-line"></i>
-                </div>
-                <div class="stat-content">
-                    <div class="stat-title">Dominant Frequency</div>
-                    <div class="stat-value" id="dominantFrequency">- Hz</div>
-                    <div class="stat-trend">
-                        <i class="fas fa-waveform"></i>
-                        <span>Peak detection</span>
-                    </div>
-                </div>
+          </section>
+      
+          <!-- Detection Log -->
+          <section class="card log-panel">
+            <div class="card-header">
+              <h2><i class="fas fa-list"></i> Detection Log</h2>
+              <button class="btn btn-icon" id="clearLogs">
+                <i class="fas fa-trash-alt"></i>
+              </button>
             </div>
-
-            <div class="stat-card">
-                <div class="stat-icon">
-                    <i class="fas fa-percentage"></i>
+            <div class="card-content">
+              <div class="detections-list" id="detectionsList">
+                <div class="empty-state">
+                  <i class="fas fa-microphone"></i>
+                  <p>Waiting for audio input...</p>
                 </div>
-                <div class="stat-content">
-                    <div class="stat-title">Confidence Score</div>
-                    <div class="stat-value" id="harmonicScore">0%</div>
-                    <div class="stat-trend">
-                        <i class="fas fa-chart-bar"></i>
-                        <span>Pattern match</span>
-                    </div>
-                </div>
+              </div>
             </div>
-
-            <div class="stat-card">
-                <div class="stat-icon">
-                    <i class="fas fa-clock"></i>
-                </div>
-                <div class="stat-content">
-                    <div class="stat-title">Analysis Duration</div>
-                    <div class="stat-value" id="analysisDuration">00:00</div>
-                    <div class="stat-trend">
-                        <i class="fas fa-check-circle"></i>
-                        <span>Stable</span>
-                    </div>
-                </div>
+          </section>
+      
+          <!-- GNSS Panel -->
+          <section class="card gnss-panel">
+            <div class="card-header">
+              <h2><i class="fas fa-satellite-dish"></i> GNSS Status</h2>
+              <button class="btn btn-secondary" id="refresh-gnss">
+                <i class="fas fa-sync-alt"></i> Refresh
+              </button>
             </div>
-        </div>
+            
+            <div class="card-content">
+              <div class="gnss-status">
+                <div class="status-indicator" id="gnss-connection-indicator"></div>
+                <span id="gnss-status-text">Disconnected</span>
+                <span class="text-mono" id="gnss-last-update">--:--:--</span>
+              </div>
+              
+              <div class="chart-container">
+                <canvas id="satelliteComparisonChart"></canvas>
+              </div>
 
-        <div class="dashboard-grid">
-            <div class="chart-card">
-                <div class="card-header">
-                    <h3>Frequency Spectrum</h3>
-                    <div class="card-actions">
-                        <div class="range-label">Drone Range: 250-440Hz</div>
-                    </div>
-                </div>
+              <div class="chart-card">
+                <h3><i class="fas fa-signal"></i> Satellite Signal Strength (SNR)</h3>
                 <div class="chart-container">
-                    <canvas id="frequencyChart"></canvas>
+                    <canvas id="satelliteSNRChart"></canvas>
                 </div>
             </div>
+            
 
-            <div id="waveformModal" class="waveform-modal">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h3 id="modalTitle">Detection Details</h3>
-                        <button class="close-modal">&times;</button>
-                    </div>
-                    <div class="modal-body">
-                        <div class="detection-stats">
-                            <div><strong>Frequency:</strong> <span id="modalFrequency">- Hz</span></div>
-                            <div><strong>Confidence:</strong> <span id="modalConfidence">- %</span></div>
-                            <div><strong>Harmonics:</strong> <span id="modalHarmonics">-</span></div>
-                            <div><strong>Timestamp:</strong> <span id="modalTimestamp">-</span></div>
-                        </div>
-                        <div class="waveform-container">
-                            <canvas id="detectionWaveform"></canvas>
-                        </div>
-                    </div>
-                </div>
             </div>
-
-            <div class="chart-card">
-                <div class="card-header">
-                    <h3>Harmonic Analysis</h3>
-                </div>
-                <div class="chart-container">
-                    <canvas id="harmonicChart"></canvas>
-                </div>
-            </div>
-
-            <div class="chart-card">
-                <div class="card-header">
-                    <h3>Detection Log</h3>
-                    <div class="card-actions">
-                        <button class="btn-icon" id="clearLogs">
-                            <i class="fas fa-trash-alt"></i>
-                        </button>
-                    </div>
-                </div>
-                <div class="detections-list" id="detectionsList">
-                    <div class="empty-state">
-                        <i class="fas fa-microphone"></i>
-                        <p>Waiting for audio input...</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+          </section>
+        </main>
+      </div>
 
     <script>
         // System State
@@ -188,6 +182,7 @@
         let lastDetectionTime = 0;
         let detectionCooldown = 100; // 3 seconds cooldown between detections
         let animationFrameId;
+        let lastFrameTime = 0;
 
         // Then later in your code, add these new state variables
         let ongoingDetection = null;
@@ -196,8 +191,9 @@
         const BUFFER_SIZE = 2048;
         let SAMPLE_RATE = 44100; // Will be updated with actual rate
         const DRONE_FREQ_RANGE = [260, 440]; // Hz
-        const MIN_DETECTION_DURATION = 1000; // ms
-        
+        const MIN_DETECTION_DURATION = 100; // ms
+        const FRAME_INTERVAL = 100; // Process audio every 100ms (10fps) instead of 60fps
+
         // DOM Elements
         const startBtn = document.getElementById('startBtn');
         const stopBtn = document.getElementById('stopBtn');
@@ -219,7 +215,7 @@
 
         // Initialize Charts with sample data
         const frequencyCtx = document.getElementById('frequencyChart').getContext('2d');
-        const harmonicCtx = document.getElementById('harmonicChart').getContext('2d');
+
         
         // Frequency Spectrum Chart
         const frequencyChart = new Chart(frequencyCtx, {
@@ -240,6 +236,8 @@
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                devicePixelRatio: 2, // Double resolution for sharper chart
+
                 plugins: {
                     legend: { display: false },
                     tooltip: {
@@ -262,57 +260,17 @@
                 }
             }
         });
-
-        // Harmonic Analysis Chart
-        const harmonicChart = new Chart(harmonicCtx, {
-            type: 'scatter',
-            data: {
-                datasets: [{
-                    label: 'Harmonics',
-                    data: [],
-                    backgroundColor: 'rgba(234, 84, 85, 0.7)',
-                    borderColor: 'rgba(234, 84, 85, 1)',
-                    borderWidth: 1,
-                    pointRadius: 6
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                        callbacks: {
-                            label: (context) => `${context.raw.x}Hz (harmonic ${context.raw.harmonic})`
-                        }
-                    }
-                },
-                scales: {
-                    x: {
-                        title: { display: true, text: 'Frequency (Hz)' },
-                        min: 0,
-                        max: 500
-                    },
-                    y: {
-                        title: { display: true, text: 'Power (dB)' },
-                        min: -100,
-                        max: 0
-                    }
-                }
-            }
-        });
-
         // WebSocket and API connection management
         let websocket = null;
         let currentSessionId = null;
         let isConnected = false;
-        const API_BASE_URL = window.location.origin; // Use the same origin as the frontend
+//        const API_BASE_URL = window.location.origin;
+        const API_BASE_URL = "http://localhost:8000";
 
         // Connect to WebSocket
         async function connectWebSocket() {
             try {
-                const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-                const wsUrl = `${wsProtocol}//${window.location.host}/ws/detections`;
+                const wsUrl = API_BASE_URL.replace('http', 'ws') + '/ws/detections';
                 websocket = new WebSocket(wsUrl);
 
                 websocket.onopen = () => {
@@ -390,9 +348,7 @@
             try {
                 const response = await fetch(`${API_BASE_URL}/sessions`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
+                    headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
                         sensitivity: parseFloat(sensitivity.value),
                         frequency_range: DRONE_FREQ_RANGE
@@ -400,28 +356,17 @@
                 });
                 
                 if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Failed to start session');
                 }
                 
-                const data = await response.json();
-                currentSessionId = data.session_id;
-                console.log('Listening session started:', currentSessionId);
-                
-                // Connect WebSocket after session creation
-                if (websocket && websocket.readyState !== WebSocket.OPEN) {
-                    connectWebSocket();
-                }
-                
-                return data;
-                
+                return await response.json();
             } catch (error) {
-                console.error('Error starting listening session:', error);
-                updateStatus(false, 'Start listening failed: ' + error.message);
+                console.error('Error:', error);
                 throw error;
             }
         }
-        
+
         async function stopListeningSession() {
             try {
                 if (!currentSessionId) return;
@@ -467,8 +412,8 @@
         async function getDetections(sessionId = null) {
             try {
                 const url = sessionId 
-                    ? `${API_BASE_URL}/api/detections?session_id=${sessionId}`
-                    : `${API_BASE_URL}/api/detections`;
+                    ? `${API_BASE_URL}/detections?session_id=${sessionId}`
+                    : `${API_BASE_URL}/detections`;
                     
                 const response = await fetch(url);
                 
@@ -616,6 +561,7 @@
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    devicePixelRatio: 2, // Double resolution for sharper chart
                     plugins: {
                         legend: { display: false },
                         tooltip: {
@@ -682,6 +628,8 @@
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    devicePixelRatio: 2, // Double resolution for sharper chart
+
                     plugins: {
                         legend: { display: false },
                         tooltip: {
@@ -782,86 +730,141 @@
                         }
                     }
                     
-                    harmonicChart.data.datasets[0].data = harmonics;
-                    harmonicChart.update('none');
                 } else {
                     // Clear harmonics if no peaks found
-                    harmonicChart.data.datasets[0].data = [];
-                    harmonicChart.update('none');
                 }
             }
         }
 
         function findPeaks(frequencies, range) {
             const peaks = [];
-            const minAmp = -90; // Minimum amplitude threshold (dB)
-            const minPeakDistance = 10; // Minimum distance between peaks (Hz)
-            
-            // Convert frequency range to bin range
-            const startBin = Math.max(0, Math.floor(range[0] / (SAMPLE_RATE / 2 / frequencies.length)));
-            const endBin = Math.min(frequencies.length - 1, Math.ceil(range[1] / (SAMPLE_RATE / 2 / frequencies.length)));
-            
-            // Find all local maxima above threshold
+            const minAmp = -80; // Increased sensitivity for 50-60 dB signals
+            const minPeakDistance = 5; // Reduced to catch closer peaks
+            const harmonicTolerance = 0.03; // 3% frequency tolerance for harmonics
+        
+            // Calculate frequency resolution
+            const binSize = SAMPLE_RATE / 2 / frequencies.length;
+            const startBin = Math.max(0, Math.floor(range[0] / binSize));
+            const endBin = Math.min(frequencies.length - 1, Math.ceil(range[1] / binSize));
+        
+            // Find all peaks in the target range
             for (let i = startBin; i <= endBin; i++) {
                 if (frequencies[i] < minAmp) continue;
-                
+        
                 const isPeak = (i === 0 || frequencies[i] >= frequencies[i - 1]) && 
-                               (i === frequencies.length - 1 || frequencies[i] >= frequencies[i + 1]);
-                
+                              (i === frequencies.length - 1 || frequencies[i] >= frequencies[i + 1]);
+        
                 if (isPeak) {
-                    const freq = i * (SAMPLE_RATE / 2 / frequencies.length);
                     peaks.push({
-                        frequency: freq,
+                        frequency: i * binSize,
                         amplitude: frequencies[i],
                         bin: i
                     });
                 }
             }
-            
-            // Filter out peaks that are too close to each other (keep the strongest)
-            return peaks.sort((a, b) => b.amplitude - a.amplitude)
-                .filter((peak, index, arr) => {
-                    return arr.slice(0, index).every(p => 
-                        Math.abs(p.frequency - peak.frequency) >= minPeakDistance
-                    );
+        
+            // Sort by amplitude (descending)
+            peaks.sort((a, b) => b.amplitude - a.amplitude);
+        
+            // Find harmonic series
+            const harmonicSeries = [];
+            for (const peak of peaks) {
+                const harmonics = [peak];
+                let validHarmonics = 1; // Count the fundamental
+        
+                // Check for harmonics (up to 5th)
+                for (let n = 2; n <= 5; n++) {
+                    const targetFreq = peak.frequency * n;
+                    const tolerance = targetFreq * harmonicTolerance;
+        
+                    // Find the strongest peak within tolerance
+                    let bestHarmonic = null;
+                    for (const candidate of peaks) {
+                        if (Math.abs(candidate.frequency - targetFreq) <= tolerance) {
+                            if (!bestHarmonic || candidate.amplitude > bestHarmonic.amplitude) {
+                                bestHarmonic = candidate;
+                            }
+                        }
+                    }
+        
+                    if (bestHarmonic) {
+                        harmonics.push(bestHarmonic);
+                        validHarmonics++;
+                    }
+                }
+        
+                // Only consider series with at least 3 harmonics (fundamental + 2)
+                if (validHarmonics >= 3) {
+                    harmonicSeries.push({
+                        fundamental: peak,
+                        harmonics: harmonics,
+                        count: validHarmonics,
+                        totalPower: harmonics.reduce((sum, h) => sum + h.amplitude, 0)
+                    });
+                }
+            }
+        
+            // Return the best harmonic series (if any)
+            if (harmonicSeries.length > 0) {
+                // Sort by harmonic count then total power
+                harmonicSeries.sort((a, b) => {
+                    if (b.count !== a.count) return b.count - a.count;
+                    return b.totalPower - a.totalPower;
                 });
+        
+                return harmonicSeries[0].harmonics;
+            }
+        
+            return [];
         }
-
-        function processAudioData() {
-            if (!audioAnalyser || !isListening) return;
+        
+        function processAudioData(timestamp) {
+            if (!audioAnalyser || !isListening) {
+                animationFrameId = null;
+                return;
+            }
             
+            // Throttle processing to reduce CPU load
+            if (timestamp - lastFrameTime < FRAME_INTERVAL) {
+                animationFrameId = requestAnimationFrame(processAudioData);
+                return;
+            }
+            lastFrameTime = timestamp;
+        
             // Frequency data
             const frequencyData = new Uint8Array(audioAnalyser.frequencyBinCount);
             audioAnalyser.getByteFrequencyData(frequencyData);
-            
-            // Convert to dB scale for visualization
-            const scaledFrequencyData = Array.from(frequencyData).map(val => {
-                return (val / 255) * 100 - 100; // Convert to dB-like scale (-100 to 0)
-            });
             
             // Time domain data
             const timeData = new Float32Array(audioAnalyser.fftSize);
             audioAnalyser.getFloatTimeDomainData(timeData);
             
-            // Update visualizations
-            updateVisualizations(scaledFrequencyData, Array.from(timeData));
+            // Batch DOM updates to reduce reflows
+            requestAnimationFrame(() => {
+                // Convert to dB scale for visualization
+                const scaledFrequencyData = Array.from(frequencyData).map(val => {
+                    return (val / 255) * 100 - 100;
+                });
+                
+                // Update visualizations
+                updateVisualizations(scaledFrequencyData, Array.from(timeData));
+                
+                // Calculate RMS for audio level
+                let sum = 0;
+                for (let i = 0; i < timeData.length; i++) {
+                    sum += timeData[i] * timeData[i];
+                }
+                const rms = Math.sqrt(sum / timeData.length);
+                const db = 20 * Math.log10(rms);
+                updateAudioLevel(isFinite(db) ? db : -100);
+            });
             
-            // Calculate RMS for audio level
-            let sum = 0;
-            for (let i = 0; i < timeData.length; i++) {
-                sum += timeData[i] * timeData[i];
-            }
-            const rms = Math.sqrt(sum / timeData.length);
-            const db = 20 * Math.log10(rms);
-            updateAudioLevel(isFinite(db) ? db : -100);
+            // Perform drone detection analysis (in a web worker if possible)
+            analyzeForDrones(frequencyData);
             
-            // Perform drone detection analysis
-            analyzeForDrones(scaledFrequencyData);
-            
-            // Continue processing
             animationFrameId = requestAnimationFrame(processAudioData);
-        }
-        
+        }        
+
         function analyzeForDrones(frequencyData) {
             const now = Date.now();
             
@@ -870,69 +873,103 @@
             
             lastDetectionTime = now;
             
+            // Convert frequency data to dB scale (assuming 0-255 input)
+            const dBData = Array.from(frequencyData).map(val => {
+                return 20 * Math.log10((val + 1) / 255 * 100); // +1 to avoid log(0)
+            });
+        
             // Find peaks in the frequency spectrum
-            const peaks = findPeaks(frequencyData, DRONE_FREQ_RANGE);
+            const peaks = findPeaks(dBData, DRONE_FREQ_RANGE);
             
             if (peaks.length > 0) {
-                // Find the strongest peak
+                // Find the strongest peak in our target range
                 const strongestPeak = peaks.reduce((a, b) => 
                     a.amplitude > b.amplitude ? a : b
                 );
                 
-                // Check for harmonics (a key characteristic of drone sounds)
+                // Verify this is actually a significant peak (70 dB)
+                if (strongestPeak.amplitude < 70) {
+                    resetOngoingDetection();
+                    return;
+                }
+        
+                // Check for harmonics (2nd, 3rd, and 4th)
+                const harmonicTolerance = 0.03; // 3% frequency tolerance
                 const harmonics = [];
+                
                 for (let n = 2; n <= 4; n++) {
-                    const harmonicFreq = strongestPeak.frequency * n;
-                    const bin = Math.floor(harmonicFreq / (SAMPLE_RATE / 2 / frequencyData.length));
+                    const targetFreq = strongestPeak.frequency * n;
+                    const targetBin = Math.floor(targetFreq / (SAMPLE_RATE / 2 / dBData.length));
+                    const minBin = Math.max(0, targetBin - 2);
+                    const maxBin = Math.min(dBData.length - 1, targetBin + 2);
                     
-                    if (bin < frequencyData.length && frequencyData[bin] > -70) {
+                    // Find strongest signal within ±2 bins of harmonic frequency
+                    let maxAmp = -Infinity;
+                    let harmonicFreq = 0;
+                    
+                    for (let bin = minBin; bin <= maxBin; bin++) {
+                        if (dBData[bin] > maxAmp) {
+                            maxAmp = dBData[bin];
+                            harmonicFreq = bin * (SAMPLE_RATE / 2 / dBData.length);
+                        }
+                    }
+                    
+                    if (maxAmp > 40) { // Minimum harmonic amplitude (40 dB)
                         harmonics.push({
                             frequency: harmonicFreq,
-                            amplitude: frequencyData[bin],
+                            amplitude: maxAmp,
                             harmonic: n
                         });
                     }
                 }
                 
-                // Calculate confidence score based on peak strength and harmonics
-                const confidence = Math.min(1, 
-                    (strongestPeak.amplitude + 70) / 70 * 0.6 + // 60% weight to peak strength
-                    (harmonics.length / 4) * 0.4 // 40% weight to harmonics
-                );
+                // Calculate confidence score
+                const amplitudeScore = Math.min(1, (strongestPeak.amplitude - 40) / 30); // 40-70 dB → 0-1
+                const harmonicScore = harmonics.length / 3; // 0-1 based on found harmonics
+                const confidence = amplitudeScore * 0.6 + harmonicScore * 0.4;
                 
-                if (confidence > 0.5) { // Only consider detections with >50% confidence
+                if (confidence > 0.6) { // Higher confidence threshold
                     if (!ongoingDetection) {
-                        // Start a new potential detection
                         ongoingDetection = {
                             frequency: strongestPeak.frequency,
                             confidence: confidence,
                             harmonics: harmonics.length,
+                            amplitudes: [strongestPeak.amplitude, ...harmonics.map(h => h.amplitude)],
                             startTime: now
                         };
                         detectionStartTime = now;
                     } else {
-                        // Update ongoing detection with latest data
-                        ongoingDetection.frequency = strongestPeak.frequency;
-                        ongoingDetection.confidence = confidence;
-                        ongoingDetection.harmonics = harmonics.length;
+                        // Update ongoing detection with weighted average
+                        ongoingDetection.frequency = ongoingDetection.frequency * 0.7 + strongestPeak.frequency * 0.3;
+                        ongoingDetection.confidence = ongoingDetection.confidence * 0.7 + confidence * 0.3;
+                        ongoingDetection.harmonics = Math.round(
+                            ongoingDetection.harmonics * 0.7 + harmonics.length * 0.3
+                        );
+                        // Update amplitudes (weighted)
+                        ongoingDetection.amplitudes[0] = ongoingDetection.amplitudes[0] * 0.7 + strongestPeak.amplitude * 0.3;
+                        for (let i = 0; i < harmonics.length; i++) {
+                            if (i < ongoingDetection.amplitudes.length - 1) {
+                                ongoingDetection.amplitudes[i+1] = ongoingDetection.amplitudes[i+1] * 0.7 + harmonics[i].amplitude * 0.3;
+                            }
+                        }
                     }
                 } else {
-                    // Confidence too low - reset ongoing detection
                     resetOngoingDetection();
                 }
             } else {
-                // No peaks found - reset ongoing detection
                 resetOngoingDetection();
             }
             
-            // Check if we have a sustained detection
+            // Check for sustained detection
             if (ongoingDetection && now - detectionStartTime >= MIN_DETECTION_DURATION) {
+                const avgAmplitude = ongoingDetection.amplitudes.reduce((a, b) => a + b, 0) / ongoingDetection.amplitudes.length;
+                
                 const detection = {
                     timestamp: new Date().toISOString(),
                     frequency: ongoingDetection.frequency,
                     confidence: ongoingDetection.confidence,
                     harmonics: ongoingDetection.harmonics,
-                    rms: ongoingDetection.amplitude,
+                    dbLevel: avgAmplitude,
                     duration: now - detectionStartTime
                 };
                 
@@ -941,6 +978,11 @@
             }
         }
         
+        // Helper function to convert FFT values to dB
+        function fftToDB(fftValue, maxValue = 255) {
+            return 20 * Math.log10((fftValue + 1) / maxValue * 100);
+        }
+
         function resetOngoingDetection() {
             ongoingDetection = null;
             detectionStartTime = null;
@@ -1154,29 +1196,73 @@
             `;
         }
 
-        // Initialize WebSocket connection when page loads
+        
         document.addEventListener('DOMContentLoaded', () => {
+            // Button references must match your HTML IDs exactly
+            const startBtn = document.getElementById('startBtn');
+            const stopBtn = document.getElementById('stopBtn');
+            const clearLogsBtn = document.getElementById('clearLogs');
+            const gainControl = document.getElementById('gainControl');
+            const sensitivity = document.getElementById('sensitivity');
+            const calibrateBtn = document.getElementById('calibrateBtn');
+            const refreshBtn = document.getElementById('refresh-gnss');
+            const gnssStatusText = document.getElementById('gnss-status-text');
+            const gnssConnectionIndicator = document.getElementById('gnss-connection-indicator');
+            const gnssLastUpdate = document.getElementById('gnss-last-update');
+            // Sanity check
+            if (!startBtn || !stopBtn || !clearLogsBtn || !gainControl || 
+                !sensitivity || !calibrateBtn || !refreshBtn) {
+                console.error('One or more required elements not found in the DOM');
+                return;
+            }
+        
+            // Initialize GNSS monitoring
+            initializeGNSSMonitoring();
+        
+            // Audio detection controls
+            startBtn.addEventListener('click', startListening);
+            stopBtn.addEventListener('click', stopListening);
+            clearLogsBtn.addEventListener('click', clearLogs);
+            gainControl.addEventListener('input', updateGain);
+            sensitivity.addEventListener('input', updateSensitivity);
+        
+            calibrateBtn.addEventListener('click', async () => {
+                try {
+                    updateStatus(false, 'Calibrating fan noise...');
+                    calibrateBtn.disabled = true;
+                    const result = await calibrateFanNoise();
+                    console.log('Calibration result:', result);
+                    updateStatus(true, 'Calibration complete');
+                    setTimeout(() => {
+                        updateStatus(isListening, isListening ? 'Listening for drones...' : 'Ready to start');
+                    }, 2000);
+                } catch (error) {
+                    console.error('Calibration failed:', error);
+                    updateStatus(false, 'Calibration failed');
+                } finally {
+                    calibrateBtn.disabled = false;
+                }
+            });
+        
+            // Other initial UI updates
             connectWebSocket();
             updateCurrentTime();
             updateStatus(false, 'Connecting to server...');
-            
-            // Initialize charts with some data
             updateVisualizations();
-            
-            // Check current session status
+            updateGNSSStatus('USB GPS not connected', false);
+        
+            // Session restoration
             getCurrentSession().then(session => {
-                if (session && session.is_active) {
+                if (session?.is_active) {
                     currentSessionId = session.session_id;
                     updateStatus(true, 'Resumed listening session');
                     startBtn.disabled = true;
                     stopBtn.disabled = false;
                     isListening = true;
                     analysisStartTime = new Date(session.start_time);
-                    
-                    // Load previous detections
+        
                     getDetections(currentSessionId).then(detections => {
                         if (detections.length === 0) {
-                            // Add some mock detections if none exist
                             addMockDetection(150, 0.82, 3);
                             addMockDetection(220, 0.65, 2);
                         } else {
@@ -1188,34 +1274,1027 @@
                 }
             });
         });
+        
+        const gnssStatus = {
+            connectionType: null,
+            device: null,
+            usbReadInterval: null,
+            webSocketReconnectAttempts: 0,
+            maxReconnectAttempts: 5,
+            baseReconnectDelay: 2000,
+            isExplicitDisconnect: false,
+            lastHeartbeat: null,
+            heartbeatInterval: null,
+            gps: { inView: 0, total: 32, snr: [] },
+            glonass: { inView: 0, total: 24, snr: [] },
+            galileo: { inView: 0, total: 30, snr: [] },
+            beidou: { inView: 0, total: 35, snr: [] },
+            lastUpdate: null
+        };
+        
+        let gnssWebSocket = null;
+        
+        function initializeGNSSMonitoring() {
+            // Check if required elements exist
+            const requiredElements = [
+                 'refresh-gnss', 'gnss-status-text',
+                'gnss-connection-indicator', 'gnss-last-update',
+                'satelliteComparisonChart'
+            ];
+            
+            for (const id of requiredElements) {
+                if (!document.getElementById(id)) {
+                    console.error(`Missing required element: #${id}`);
+                    return;
+                }
+            }
 
-        // Event Listeners
-        startBtn.addEventListener('click', startListening);
-        stopBtn.addEventListener('click', stopListening);
-        clearLogsBtn.addEventListener('click', clearLogs);
-        gainControl.addEventListener('input', updateGain);
-        sensitivity.addEventListener('input', updateSensitivity);
-        calibrateBtn.addEventListener('click', async () => {
+            // Set up refresh button
+            document.getElementById('refresh-gnss').addEventListener('click', refreshGNSSData);
+
+            // Start with WebSocket by default
+            gnssStatus.isExplicitDisconnect = false;
+            initGNSSWebSocket();
+        }
+        async function openWithRetry(device, maxRetries = 2) {
+            let lastError;
+            for (let i = 0; i < maxRetries; i++) {
+                try {
+                    await device.open();
+                    return; // Success
+                } catch (error) {
+                    lastError = error;
+                    console.warn(`Open attempt ${i + 1} failed:`, error);
+                    await new Promise(resolve => setTimeout(resolve, 200 * (i + 1))); // Backoff delay
+                }
+            }
+            throw lastError;
+        }
+        
+        async function claimInterface(device, interfaceNumber, alternateSetting) {
             try {
-                updateStatus(false, 'Calibrating fan noise...');
-                calibrateBtn.disabled = true;
-                const result = await calibrateFanNoise();
-                console.log('Calibration result:', result);
-                updateStatus(true, 'Calibration complete');
+                if (device.detachKernelDriver) {
+                    try {
+                        await device.detachKernelDriver(interfaceNumber);
+                        console.log(`Detached kernel driver from IF#${interfaceNumber}`);
+                    } catch (err) {
+                        console.warn(`Could not detach kernel driver from IF#${interfaceNumber}:`, err);
+                    }
+                }
+        
+                await device.claimInterface(interfaceNumber);
+                if (alternateSetting !== 0) {
+                    await device.selectAlternateInterface(interfaceNumber, alternateSetting);
+                }
+            } catch (error) {
+                throw new Error(`Failed to claim IF#${interfaceNumber}: ${error.message}`);
+            }
+        }
+                
+        // Main auto-connect function
+        async function autoConnectGNSS() {
+            if (gnssStatus.autoConnectAttempts >= gnssStatus.maxAutoConnectAttempts) {
+                console.log('Max auto-connect attempts reached');
+                return;
+            }
+        
+            gnssStatus.autoConnectAttempts++;
+            updateGNSSStatus("Attempting auto-connect...", false);
+        
+            // Try USB first if available
+            if (await isUSBDeviceAvailable()) {
+                try {
+                    await connectUSB();
+                    return; // Success
+                } catch (usbError) {
+                    console.log('USB connection failed:', usbError.message);
+                }
+            }
+        
+            // Fall back to WebSocket
+            try {
+                await connectWebSocket();
+            } catch (wsError) {
+                console.error('WebSocket connection failed:', wsError);
+                // Schedule retry with exponential backoff
+                const delay = Math.min(30000, 2000 * Math.pow(2, gnssStatus.autoConnectAttempts));
+                setTimeout(autoConnectGNSS, delay);
+            }
+        }
+        
+// Enhanced USB Connection
+async function connectUSB() {
+    try {
+        const devices = await navigator.usb.getDevices();
+        if (devices.length === 0) {
+            throw new Error('No authorized USB devices');
+        }
+
+        const device = devices[0];
+        await initializeDevice(device);
+        gnssStatus.device = device;
+        gnssStatus.connectionType = 'usb';
+        updateGNSSStatus("Connected via USB", true);
+        
+        // Setup monitoring
+        setupUSBMontoring();
+        return true;
+    } catch (error) {
+        console.error('USB connection failed:', error);
+        await cleanupUSBConnection();
+        throw error;
+    }
+}
+
+// Setup USB Monitoring
+function setupUSBMontoring() {
+    // Watch for device disconnect
+    gnssStatus.usbWatchdog = setInterval(async () => {
+        if (!gnssStatus.device?.opened) {
+            console.log('USB device disconnected');
+            await cleanupUSBConnection();
+            autoConnectGNSS();
+        }
+    }, 5000);
+    
+    // Watch for new connect events
+    navigator.usb.addEventListener('connect', async () => {
+        if (gnssStatus.connectionType !== 'usb') {
+            autoConnectGNSS();
+        }
+    });
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', () => {
+    // Start auto-connection
+    autoConnectGNSS();
+    initializeCombinedSNRChart(); // Initialize the combined chart
+
+    // Setup refresh button
+    document.getElementById('refresh-gnss').addEventListener('click', () => {
+        if (gnssStatus.connectionType === 'usb') {
+            connectUSB();
+        } else {
+            connectWebSocket();
+        }
+    });
+
+});
+
+
+
+// USB Device Detection
+        async function isUSBDeviceAvailable() {
+            if (!navigator.usb) return false;
+            
+            try {
+                const devices = await navigator.usb.getDevices();
+                return devices.length > 0;
+            } catch (error) {
+                console.log('USB device check failed:', error);
+                return false;
+            }
+        }
+
+    function cleanupWebSocketConnection() {
+            if (gnssWebSocket) {
+                console.log("Cleaning up GNSS WebSocket connection...");
+                
+                try {
+                    gnssWebSocket.onopen = null;
+                    gnssWebSocket.onmessage = null;
+                    gnssWebSocket.onclose = null;
+                    gnssWebSocket.onerror = null;
+                    
+                    if (gnssWebSocket.readyState === WebSocket.OPEN || gnssWebSocket.readyState === WebSocket.CONNECTING) {
+                        gnssWebSocket.close();
+                    }
+                } catch (error) {
+                    console.error("Error while closing GNSS WebSocket:", error);
+                }
+                
+                gnssWebSocket = null;
+                updateGNSSStatus("WebSocket disconnected", false);
+                setupAutoReconnect();
+
+            }
+        }
+        
+        let userInteracted = false;
+        let usbAttempted = false;
+        
+        // Initialize WebSocket immediately on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            initGNSSWebSocket();
+            autoConnectGNSS();
+        });
+        
+        function handleUserInteraction() {
+            if (!userInteracted) {
+                userInteracted = true;
+                tryUSBConnection();
+            }
+        }
+        
+        async function tryUSBConnection() {
+            if (usbAttempted || gnssStatus.connectionType === 'usb') return;
+            
+            usbAttempted = true;
+            try {
+                updateGNSSStatus("Attempting USB connection...", false);
+                await initGNSSReceiver();
+                
+                // If USB succeeds, close WebSocket
+                if (gnssStatus.connectionType === 'websocket') {
+                    cleanupWebSocketConnection();
+                }
+                updateGNSSStatus("Connected via USB", true);
+            } catch (error) {
+                console.log('USB connection not available');
+                // Silently fail - we'll keep using WebSocket
+            }
+        }
+        
+
+
+        function setupAutoReconnect() {
+            if (gnssStatus.connectionType === 'usb') {
+                // USB reconnection will happen through tryUSBConnection()
+            } else {
+                // WebSocket auto-reconnect
                 setTimeout(() => {
-                    if (isListening) {
-                        updateStatus(true, 'Listening for drones...');
-                    } else {
-                        updateStatus(false, 'Ready to start');
+                    if (!gnssStatus.connectionType) {
+                        initGNSSWebSocket();
                     }
                 }, 2000);
+            }
+        }
+                
+        async function initGNSSReceiver() {
+            try {
+                // Check if WebUSB is available
+                if (!navigator.usb) {
+                    throw new Error('WebUSB not supported in this browser');
+                }
+        
+                // Try to get previously authorized device first
+                const devices = await navigator.usb.getDevices();
+                if (devices.length > 0) {
+                    // Use first authorized device
+                    const device = devices[0];
+                    await initializeDevice(device);
+                    gnssStatus.device = device;
+                    updateGNSSStatus('Connected via USB', true, 'usb');
+                    return;
+                }
+        
+                // If no authorized devices, request new connection
+                // Note: This will throw SecurityError without user gesture
+                const device = await navigator.usb.requestDevice({
+                    filters: [
+                        { vendorId: 0x1546, productId: 0x01a8 }, // u-blox
+                        { vendorId: 0x067b, productId: 0x2303 }  // Prolific
+                    ]
+                });
+        
+                if (!device) {
+                    throw new Error('No GNSS device selected');
+                }
+        
+                await initializeDevice(device);
+                gnssStatus.device = device;
+                updateGNSSStatus('Connected via USB', true, 'usb');
+        
             } catch (error) {
-                console.error('Calibration failed:', error);
-                updateStatus(false, 'Calibration failed');
-            } finally {
-                calibrateBtn.disabled = false;
+                if (error.name === 'SecurityError') {
+                    console.log('USB access requires user interaction');
+                    throw new Error('Please interact with page to enable USB');
+                }
+                throw error;
+            }
+        }
+
+        async function initializeDevice(device) {
+            try {
+                await openWithRetry(device);
+        
+                // Device reset with recovery time
+                if (device.reset) {
+                    try {
+                        await device.reset();
+                        console.log('Device reset performed');
+                        await new Promise(resolve => setTimeout(resolve, 1500)); // Increased recovery time
+                    } catch (resetError) {
+                        console.warn('Device reset failed:', resetError);
+                    }
+                }
+        
+                // Configuration selection with fallback
+                if (!device.configuration) {
+                    try {
+                        await device.selectConfiguration(1);
+                    } catch (configError) {
+                        console.warn('Failed to select configuration:', configError);
+                        // Try alternative configuration if available
+                        if (device.configurations.length > 1) {
+                            try {
+                                await device.selectConfiguration(2);
+                            } catch (altConfigError) {
+                                console.warn('Failed alternate configuration:', altConfigError);
+                            }
+                        }
+                    }
+                }
+        
+                // u-blox specific configuration (if u-blox device)
+                if (device.vendorId === 0x1546) { // u-blox vendor ID
+                    try {
+                        console.log('Configuring u-blox device...');
+                        
+                        // Enable NMEA output on all ports
+                        const configPayload = new Uint8Array([
+                            0x06, 0x00, // UBX-CFG-PRT message class/id
+                            0x14, 0x00, // Length
+                            0x01, 0x00, 0x00, 0x00, // Port ID (USB)
+                            0x00, 0x00, 0x00, 0x00, // Reserved
+                            0xFF, 0xFF, 0x00, 0x00, // TX ready
+                            0x00, 0x00, 0x00, 0x00, // Mode (USB doesn't use baud rate)
+                            0x03, 0x00, // InProtoMask (UBX + NMEA)
+                            0x03, 0x00, // OutProtoMask (UBX + NMEA)
+                            0x00, 0x00, // Flags
+                            0x00, 0x00  // Reserved
+                        ]);
+                        
+                        await device.controlTransferOut({
+                            requestType: 'vendor',
+                            recipient: 'device',
+                            request: 0x00, // Send UBX message
+                            value: 0x0000,
+                            index: 0x0000
+                        }, configPayload);
+                        
+                        // Enable GSV messages (satellite view)
+                        const gsvConfig = new Uint8Array([
+                            0x06, 0x01, // UBX-CFG-MSG message class/id
+                            0x08, 0x00, // Length
+                            0xF0, 0x03, // NMEA GSV message class/id
+                            0x01,       // Rate on USB (1 = every cycle)
+                            0x00, 0x00, 0x00, 0x00 // Reserved
+                        ]);
+                        
+                        await device.controlTransferOut({
+                            requestType: 'vendor',
+                            recipient: 'device',
+                            request: 0x00,
+                            value: 0x0000,
+                            index: 0x0000
+                        }, gsvConfig);
+                        
+                        console.log('u-blox configuration sent');
+                        
+                        // Short delay to allow configuration to take effect
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                    } catch (configError) {
+                        console.warn('u-blox configuration failed:', configError);
+                        // Continue even if configuration fails - device might have defaults
+                    }
+                }
+        
+                // Interface and endpoint selection
+                let interfaceClaimed = false;
+                for (const iface of device.configuration.interfaces) {
+                    for (const alt of iface.alternates) {
+                        const inEndpoint = alt.endpoints.find(ep => 
+                            ep.direction === 'in' && ep.type === 'bulk'
+                        );
+        
+                        if (!inEndpoint) continue;
+        
+                        try {
+                            await claimInterface(device, iface.interfaceNumber, alt.alternateSetting);
+                            console.log(`Claimed IF#${iface.interfaceNumber}, Alt#${alt.alternateSetting}, ` +
+                                       `Endpoint ${inEndpoint.endpointNumber}`);
+                            
+                            // Additional check for u-blox devices
+                            if (device.vendorId === 0x1546) {
+                                // Clear any buffered data
+                                try {
+                                    await device.transferIn(inEndpoint.endpointNumber, 256);
+                                } catch (clearError) {
+                                    console.warn('Buffer clear failed:', clearError);
+                                }
+                            }
+                            
+                            gnssStatus.device = device;
+                            startUSBReading(device, iface.interfaceNumber, inEndpoint.endpointNumber);
+                            interfaceClaimed = true;
+                            break;
+                        } catch (claimError) {
+                            console.warn(`Failed to claim IF#${iface.interfaceNumber}:`, claimError);
+                            continue;
+                        }
+                    }
+                    if (interfaceClaimed) break;
+                }
+        
+                if (!interfaceClaimed) {
+                    throw new Error('No usable interface with IN endpoint found');
+                }
+        
+                // Start a watchdog timer for USB connection
+                gnssStatus.usbWatchdog = setInterval(() => {
+                    if (!device.opened) {
+                        console.warn('USB device disconnected unexpectedly!');
+                        cleanupUSBConnection();
+                        initGNSSWebSocket(); // Fall back to WebSocket
+                    }
+                }, 5000);
+        
+            } catch (error) {
+                console.error('Device initialization failed:', error);
+                if (device.opened) {
+                    try {
+                        await device.close();
+                    } catch (closeError) {
+                        console.warn('Error closing device:', closeError);
+                    }
+                }
+                throw error;
+            }
+        }
+        
+        
+        function startUSBReading(device, interfaceNumber, endpointNumber) {
+            if (gnssStatus.usbReadInterval) {
+                clearInterval(gnssStatus.usbReadInterval);
+            }
+        
+            const textDecoder = new TextDecoder('ascii', { stream: true });
+            let buffer = '';
+            const nmeaRegex = /\$[A-Z]{5}[^$]*?\*[0-9A-F]{2}/g;
+            let errorCount = 0;
+            const maxErrors = 3;
+        
+            gnssStatus.usbReadInterval = setInterval(async () => {
+                try {
+                    const result = await device.transferIn(endpointNumber, 256);
+                    //console.log('USB transfer result:', result);
+        
+                    if (result.status === 'ok' && result.data) {
+                        const rawData = textDecoder.decode(result.data, { stream: true });
+                        //console.log('Raw USB data:', rawData);
+                        buffer += rawData;
+        
+                        // Process complete sentences
+                        let match;
+                        while ((match = nmeaRegex.exec(buffer)) !== null) {
+                            const sentence = match[0].trim();
+                            const parsed = parseNMEASentence(sentence);
+                            if (parsed) {
+                                //console.log('Parsed NMEA:', parsed);
+                                processGNSSUpdate({
+                                    systems: {
+                                        [parsed.system]: {
+                                            in_view: parsed.totalSats,
+                                            snr: parsed.snr
+                                        }
+                                    }
+                                });
+                            }
+                        }
+        
+                        // Keep only the leftover incomplete sentence (if any)
+                        const lastAsteriskIndex = buffer.lastIndexOf('*');
+                        if (lastAsteriskIndex !== -1 && lastAsteriskIndex + 3 <= buffer.length) {
+                            buffer = buffer.slice(lastAsteriskIndex + 3);
+                        }
+        
+                        errorCount = 0; // reset error counter on success
+                    } else {
+                        console.warn('USB transfer status not OK');
+                    }
+                } catch (error) {
+                    console.error('USB read error:', error);
+                    errorCount++;
+                    if (errorCount >= maxErrors) {
+                        updateGNSSStatus('USB read error - disconnecting', false);
+                        clearInterval(gnssStatus.usbReadInterval);
+                        gnssStatus.usbReadInterval = null;
+                        cleanupUSBConnection();
+                        initGNSSWebSocket();
+                    } else {
+                        console.log(`USB read error count: ${errorCount}, retrying...`);
+                    }
+                }
+            }, 100);  // 100ms interval as a balance
+        }
+        
+
+        function initGNSSWebSocket() {
+            if (gnssWebSocket) return;
+        
+            const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+            const wsUrl = `${protocol}://${window.location.host}/ws/gnss`;
+            
+            gnssWebSocket = new WebSocket(wsUrl);
+        
+            gnssWebSocket.onopen = () => {
+                gnssStatus.connectionType = 'websocket';
+                updateGNSSStatus('Connected via WebSocket', true, 'websocket');
+            };
+        
+            gnssWebSocket.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.type === 'gnss_data') {
+                        processGNSSUpdate(data.payload);
+                    }
+                } catch (error) {
+                    console.error('Error parsing message:', error);
+                }
+            };
+        
+            gnssWebSocket.onclose = () => {
+                if (gnssStatus.connectionType === 'websocket') {
+                    updateGNSSStatus("Disconnected", false);
+                    setTimeout(initGNSSWebSocket, 2000);
+                }
+            };
+        
+            gnssWebSocket.onerror = (error) => {
+                console.error('WebSocket error:', error);
+                gnssWebSocket.close();
+            };
+        }
+        function cleanupWebSocketConnection() {
+            gnssStatus.isExplicitDisconnect = true;
+            
+            if (gnssStatus.heartbeatInterval) {
+                clearInterval(gnssStatus.heartbeatInterval);
+                gnssStatus.heartbeatInterval = null;
+            }
+            
+            if (gnssWebSocket) {
+                gnssWebSocket.close();
+                gnssWebSocket = null;
+            }
+            
+            gnssStatus.connectionType = null;
+            updateGNSSStatus("WebSocket disconnected", false);
+        }
+        
+        function cleanupWebSocketResources() {
+            if (gnssStatus.heartbeatInterval) {
+                clearInterval(gnssStatus.heartbeatInterval);
+                gnssStatus.heartbeatInterval = null;
+            }
+            gnssWebSocket = null;
+        }
+        
+        document.body.addEventListener('click', async () => {
+            if (gnssStatus.connectionType !== 'usb') {
+                try {
+                    await initGNSSReceiver();
+                } catch (error) {
+                    console.log('USB connection attempt failed:', error);
+                }
             }
         });
-    </script>
+        
+async function cleanupUSBConnection() {
+    if (gnssStatus.usbReadInterval) {
+        clearInterval(gnssStatus.usbReadInterval);
+        gnssStatus.usbReadInterval = null;
+    }
+    
+    if (gnssStatus.device) {
+        try {
+            // Graceful shutdown
+            if (gnssStatus.device.opened) {
+                await gnssStatus.device.releaseInterface(gnssStatus.device.configuration.interfaces[0].interfaceNumber);
+                await gnssStatus.device.close();
+            }
+        } catch (error) {
+            console.error('Cleanup error:', error);
+        } finally {
+            gnssStatus.device = null;
+        }
+    }
+    
+    updateGNSSStatus('USB disconnected', false);
+    setupAutoReconnect();
+}
+
+        function checkHeartbeat() {
+            if (!gnssWebSocket) return;
+            
+            if (Date.now() - gnssStatus.lastHeartbeat > 15000) {
+                try {
+                    gnssWebSocket.send(JSON.stringify({ type: 'ping' }));
+                } catch (e) {
+                    console.error('Ping failed:', e);
+                }
+            }
+            
+            if (Date.now() - gnssStatus.lastHeartbeat > 30000) {
+                console.log('Connection stale, reconnecting...');
+                initGNSSWebSocket();
+            }
+        }
+        
+        function scheduleReconnection() {
+            const delay = Math.min(
+                30000,
+                gnssStatus.baseReconnectDelay * Math.pow(2, Math.min(gnssStatus.webSocketReconnectAttempts, 5))
+            );
+            
+            gnssStatus.webSocketReconnectAttempts++;
+            console.log(`Reconnecting in ${delay}ms...`);
+            
+            setTimeout(() => {
+                if (!gnssStatus.isExplicitDisconnect) {
+                    initGNSSWebSocket();
+                }
+            }, delay);
+        }
+        
+        function refreshGNSSData() {
+            if (gnssStatus.connectionType === 'websocket' && gnssWebSocket) {
+                gnssWebSocket.send(JSON.stringify({ command: 'refresh' }));
+            } else if (gnssStatus.connectionType === 'usb' && gnssStatus.device) {
+                updateGNSSDisplay();
+            }
+        }
+        
+        function processGNSSUpdate(data) {
+            if (!data?.systems) return;
+            
+            if (data.systems.gps) {
+                gnssStatus.gps.inView = data.systems.gps.in_view || 0;
+                gnssStatus.gps.snr = data.systems.gps.snr || [];
+            }
+            if (data.systems.glonass) {
+                gnssStatus.glonass.inView = data.systems.glonass.in_view || 0;
+                gnssStatus.glonass.snr = data.systems.glonass.snr || [];
+            }
+            if (data.systems.galileo) {
+                gnssStatus.galileo.inView = data.systems.galileo.in_view || 0;
+                gnssStatus.galileo.snr = data.systems.galileo.snr || [];
+            }
+            if (data.systems.beidou) {
+                gnssStatus.beidou.inView = data.systems.beidou.in_view || 0;
+                gnssStatus.beidou.snr = data.systems.beidou.snr || [];
+            }
+            
+            gnssStatus.lastUpdate = Date.now();
+            updateGNSSDisplay();
+        }
+        
+        function updateGNSSStatus(text, isConnected, connectionType = null) {
+            const statusElement = document.getElementById('gnss-status-text');
+            const indicator = document.getElementById('gnss-connection-indicator');
+            
+            gnssStatus.connectionType = connectionType;
+            
+            if (statusElement) statusElement.textContent = text;
+            if (indicator) {
+                indicator.className = isConnected ? 'status-indicator connected' : 'status-indicator disconnected';
+            }
+            
+            if (connectionType) {
+                const mainStatus = document.getElementById('connection-status');
+                if (mainStatus) {
+                    mainStatus.textContent = `GNSS: ${text}`;
+                    mainStatus.style.backgroundColor = isConnected ? '#4cc9f0' : '#ffc107';
+                }
+            }
+        }
+        
+
+    // Helper function to get system-specific colors
+function getSystemColor(system, border = false) {
+    const colors = {
+        gps: border ? 'rgba(65, 140, 216, 1)' : 'rgba(65, 140, 216, 0.7)',
+        glonass: border ? 'rgba(234, 84, 85, 1)' : 'rgba(234, 84, 85, 0.7)',
+        galileo: border ? 'rgba(75, 192, 192, 1)' : 'rgba(75, 192, 192, 0.7)',
+        beidou: border ? 'rgba(153, 102, 255, 1)' : 'rgba(153, 102, 255, 0.7)'
+    };
+    return colors[system] || (border ? 'rgba(255, 255, 255, 1)' : 'rgba(255, 255, 255, 0.7)');
+}
+
+        
+
+
+// Modify the updateGNSSDisplay function to include SNR chart updates
+function updateGNSSDisplay() {
+    // Update satellite counts and signal strengths
+    ['gps', 'glonass', 'galileo', 'beidou'].forEach(system => {
+        const element = document.getElementById(`gnss-${system}-status`);
+        if (!element) return;
+        
+        // Update satellite count
+        const countElement = element.querySelector('.satellite-count');
+        if (countElement) {
+            countElement.textContent = `${gnssStatus[system].inView}/${gnssStatus[system].total}`;
+        }
+        
+        // Update signal strength meter
+        const strengthElement = element.querySelector('.signal-strength');
+        if (strengthElement) {
+            const validSNRs = gnssStatus[system].snr.filter(s => s > 0);
+            const avgSNR = validSNRs.length > 0 ? 
+                Math.round(validSNRs.reduce((a, b) => a + b, 0) / validSNRs.length) : 0;
+            
+            // Scale 0-50 dB-Hz to 0-100% width
+            const widthPercent = Math.min(100, avgSNR * 2);
+            strengthElement.style.width = `${widthPercent}%`;
+            strengthElement.title = `Avg SNR: ${avgSNR} dB-Hz`;
+            
+            // Color coding based on signal quality
+            if (avgSNR > 35) {
+                strengthElement.style.backgroundColor = '#4CAF50'; // Good
+            } else if (avgSNR > 20) {
+                strengthElement.style.backgroundColor = '#FFC107'; // Fair
+            } else {
+                strengthElement.style.backgroundColor = '#F44336'; // Poor
+            }
+        }
+    });
+    
+    // Update satellite comparison chart
+    updateSatelliteChart();
+    updateCombinedSNRChart();
+
+    // Update last update time
+    const lastUpdateElement = document.getElementById('gnss-last-update');
+    if (lastUpdateElement) {
+        lastUpdateElement.textContent = new Date(gnssStatus.lastUpdate).toLocaleTimeString();
+    }
+}
+
+function initializeCombinedSNRChart() {
+    const ctx = document.getElementById('satelliteSNRChart').getContext('2d');
+    
+    gnssStatus.combinedSNRChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: [], // Satellite PRNs will go here
+            datasets: [
+                {
+                    label: 'GPS',
+                    backgroundColor: 'rgba(65, 140, 216, 0.7)',
+                    borderColor: 'rgba(65, 140, 216, 1)',
+                    borderWidth: 1,
+                    data: []
+                },
+                {
+                    label: 'GLONASS',
+                    backgroundColor: 'rgba(234, 84, 85, 0.7)',
+                    borderColor: 'rgba(234, 84, 85, 1)',
+                    borderWidth: 1,
+                    data: []
+                },
+                {
+                    label: 'Galileo',
+                    backgroundColor: 'rgba(75, 192, 192, 0.7)',
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    borderWidth: 1,
+                    data: []
+                },
+                {
+                    label: 'BeiDou',
+                    backgroundColor: 'rgba(153, 102, 255, 0.7)',
+                    borderColor: 'rgba(153, 102, 255, 1)',
+                    borderWidth: 1,
+                    data: []
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 50,
+                    title: {
+                        display: true,
+                        text: 'SNR (dB-Hz)'
+                    }
+                },
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Satellite PRN'
+                    }
+                }
+            },
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return `${context.dataset.label}: ${context.raw} dB-Hz`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+// Update the combined SNR chart
+function updateCombinedSNRChart() {
+    if (!gnssStatus.combinedSNRChart) return;
+
+    const systems = ['gps', 'glonass', 'galileo', 'beidou'];
+    const labels = [];
+    const datasets = [];
+
+    systems.forEach((system, index) => {
+        const snrValues = gnssStatus[system].snr || [];
+        
+        // Create satellite PRN labels for this system
+        const systemLabels = [];
+        for (let i = 0; i < snrValues.length; i++) {
+            const prefix = system === 'gps' ? 'G' : 
+                          system === 'glonass' ? 'R' : 
+                          system === 'galileo' ? 'E' : 'C';
+            systemLabels.push(`${prefix}${(i+1).toString().padStart(2, '0')}`);
+        }
+
+        // Add to combined labels if not already present
+        systemLabels.forEach(label => {
+            if (!labels.includes(label)) {
+                labels.push(label);
+            }
+        });
+
+        // Update dataset for this system
+        gnssStatus.combinedSNRChart.data.datasets[index].data = snrValues;
+    });
+
+    // Update labels
+    gnssStatus.combinedSNRChart.data.labels = labels;
+    gnssStatus.combinedSNRChart.update();
+}
+
+
+function updateSatelliteChart() {
+    const gpsPercent = Math.round((gnssStatus.gps.inView / gnssStatus.gps.total) * 100);
+    const glonassPercent = Math.round((gnssStatus.glonass.inView / gnssStatus.glonass.total) * 100);
+    const galileoPercent = Math.round((gnssStatus.galileo.inView / gnssStatus.galileo.total) * 100);
+    const beidouPercent = Math.round((gnssStatus.beidou.inView / gnssStatus.beidou.total) * 100);
+    
+    satelliteComparisonChart.data.datasets[0].data = [
+        gpsPercent,
+        glonassPercent,
+        galileoPercent,
+        beidouPercent
+    ];
+    
+    satelliteComparisonChart.update();
+}
+
+// Robust NMEA Parser with Error Recovery
+function parseNMEASentence(sentence) {
+    if (!sentence || typeof sentence !== 'string') return null;
+    
+    // Basic validation
+    if (!sentence.startsWith('$') || sentence.length < 6) return null;
+    
+    try {
+        // Extract checksum if present
+        const checksumIndex = sentence.indexOf('*');
+        let content, checksum;
+        
+        if (checksumIndex > 0) {
+            content = sentence.slice(1, checksumIndex);
+            checksum = sentence.slice(checksumIndex + 1);
+            
+            // Validate checksum
+            let calculatedChecksum = 0;
+            for (let i = 0; i < content.length; i++) {
+                calculatedChecksum ^= content.charCodeAt(i);
+            }
+            
+            if (checksum && parseInt(checksum, 16) !== calculatedChecksum) {
+                console.warn('Invalid NMEA checksum:', sentence);
+                return null;
+            }
+        } else {
+            content = sentence.slice(1);
+        }
+        
+        const parts = content.split(',');
+        if (parts.length < 1) return null;
+        
+        const talker = parts[0].slice(0, 2);
+        const sentenceType = parts[0].slice(2);
+        
+        // Only process GSV messages for satellite data
+        if (sentenceType === 'GSV') {
+            const systemMap = { 
+                GP: 'gps', 
+                GL: 'glonass', 
+                GA: 'galileo', 
+                BD: 'beidou',
+                GN: 'gnss' // Generic GNSS
+            };
+            
+            const system = systemMap[talker];
+            if (!system) return null;
+            
+            // Basic validation
+            if (parts.length < 4) return null;
+            
+            const totalMsgs = parseInt(parts[1], 10);
+            const msgNum = parseInt(parts[2], 10);
+            const totalSats = parseInt(parts[3], 10);
+            
+            if (isNaN(totalMsgs) || isNaN(msgNum) || isNaN(totalSats)) {
+                return null;
+            }
+            
+            // Extract SNR values (every 4th field starting at index 7)
+            const snr = [];
+            for (let i = 7; i < parts.length && i < 31; i += 4) {
+                const snrValue = parseInt(parts[i], 10);
+                if (!isNaN(snrValue) && snrValue > 0) {
+                    snr.push(snrValue);
+                }
+            }
+            
+            return {
+                type: 'satellite_data',
+                system,
+                totalSats,
+                snr,
+                timestamp: Date.now()
+            };
+        }
+        
+        return null;
+        
+    } catch (error) {
+        console.warn('Error parsing NMEA:', error);
+        return null;
+    }
+}
+
+// Initialize Satellite Comparison Chart
+const satelliteComparisonCtx = document.getElementById('satelliteComparisonChart').getContext('2d');
+const satelliteComparisonChart = new Chart(satelliteComparisonCtx, {
+    type: 'bar',
+    data: {
+        labels: ['GPS', 'GLONASS', 'Galileo', 'BeiDou'],
+        datasets: [{
+            label: 'Satellite Coverage',
+            data: [0, 0, 0, 0],
+            backgroundColor: [
+                'rgba(65, 140, 216, 0.7)',
+                'rgba(234, 84, 85, 0.7)',
+                'rgba(75, 192, 192, 0.7)',
+                'rgba(153, 102, 255, 0.7)'
+            ],
+            borderColor: [
+                'rgba(65, 140, 216, 1)',
+                'rgba(234, 84, 85, 1)',
+                'rgba(75, 192, 192, 1)',
+                'rgba(153, 102, 255, 1)'
+            ],
+            borderWidth: 1
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        devicePixelRatio: 2, // Double resolution for sharper chart
+
+        plugins: {
+            legend: { display: false },
+            tooltip: {
+                callbacks: {
+                    label: function(context) {
+                        const system = context.label.toLowerCase();
+                        const inView = gnssStatus[system].inView;
+                        const total = gnssStatus[system].total;
+                        return `${context.label}: ${context.raw}% (${inView}/${total} satellites)`;
+                    }
+                }
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: true,
+                max: 100,
+                title: { display: true, text: 'Coverage Percentage' },
+                ticks: { callback: value => value + '%' }
+            }
+        }
+    }
+});
+
+</script>
 </body>
 </html>
