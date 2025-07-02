@@ -103,3 +103,21 @@ class GNSSDevice(BaseModel):
     capabilities: List[str]
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# Pydantic models for request validation
+class FrequencyRequest(BaseModel):
+    frequency: float
+
+class ModeRequest(BaseModel):
+    mode: str
+
+class GainRequest(BaseModel):
+    gain_type: str
+    value: float
+
+class AGCRequest(BaseModel):
+    enabled: bool
+
+class BandwidthRequest(BaseModel):
+    bandwidth: float  # This will be 2.4 or 3.2 (MHz)

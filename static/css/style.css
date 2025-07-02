@@ -127,15 +127,6 @@
     50% { opacity: 0.5; }
   }
   
-  /* Charts */
-  .chart-container {
-    height: 160px;
-    position: relative;
-    margin-top: auto;
-    flex: 1;
-    min-height: 160px;
-  }
-  
   /* Controls */
   .controls {
     display: flex;
@@ -315,4 +306,99 @@
   #satelliteSNRChart {
     height: 160px;
   }
-  
+
+  /* Chart Cards Consistent with General Card Style */
+.chart-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    box-shadow: 0 2px 8px var(--shadow);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    height: 100%;
+}
+
+/* Chart Card Headings Consistent with Theme */
+.chart-card h3 {
+    margin: 0;
+    font-size: 0.95rem;
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-weight: 500;
+}
+
+/* Chart Grid Layout */
+.chart-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1rem;
+}
+
+/* Chart Container Height Control */
+.chart-container {
+    height: 160px;
+    position: relative;
+    flex: 1;
+    min-height: 160px;
+}
+
+
+
+/* SDR Display Styles */
+.sdr-display-container {
+  width: 100%;
+  margin: 1rem 0;
+  background-color: #000;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+#spectrumCanvas, #waterfallCanvas {
+  width: 100%;
+  display: block;
+}
+
+#spectrumCanvas {
+  height: 150px;
+  border-bottom: 1px solid #333;
+}
+
+#waterfallCanvas {
+  height: 300px;
+}
+
+/* Status Indicator */
+.status-indicator {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background-color: #dc3545; /* Red for disconnected */
+  margin-right: 8px;
+}
+
+.status-indicator.connected {
+  background-color: #28a745; /* Green for connected */
+}
+
+/* Control Grid Layout */
+.sdr-controls-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.control-group {
+  margin-bottom: 0.5rem;
+}
+
+.control-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}

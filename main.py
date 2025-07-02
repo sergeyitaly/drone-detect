@@ -2,7 +2,7 @@ import os
 import numpy as np
 import librosa
 import sounddevice as sd
-from fastapi import FastAPI, HTTPException, WebSocket, Depends, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, Depends, WebSocketDisconnect, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import soundfile as sf
@@ -42,7 +42,12 @@ from sqlalchemy.sql import func
 from datetime import datetime
 from models import *
 import re
+from rtlsdr import RtlSdr
+import logging
 
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 VAD_AGGRESSIVENESS = 3  # Most aggressive setting
 VOICE_ACTIVITY_FRAME_MS = 30  # milliseconds
@@ -1196,6 +1201,197 @@ async def db_check(db: Session = Depends(get_db)):
         }
     except Exception as e:
         return {"error": str(e), "status": "disconnected"}
+
+
+class SDRManager:
+    def __init__(self):
+        self.sdr = None
+        self.is_running = False
+        self.clients = set()
+        self.fft_size = 2048
+        self.sample_rate = 2.4e6
+        self.center_freq = 105e6
+        self.gain = 'auto'
+
+    def is_device_connected(self):
+        try:
+            sdr = RtlSdr()
+            sdr.close()
+            return True
+        except (OSError, RuntimeError):
+            return False
+
+    async def connect(self):
+        if self.is_running:
+            return {"status": "already_connected", "device_present": True}
+        
+        if not self.is_device_connected():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No SDR device detected. Please connect an RTL-SDR device."
+            )
+        
+        try:
+            self.sdr = RtlSdr()
+            self.sdr.sample_rate = self.sample_rate
+            self.sdr.center_freq = self.center_freq
+            self.sdr.gain = self.gain
+            self.is_running = True
+            return {
+                "status": "connected",
+                "device_present": True,
+                "sample_rate": self.sample_rate,
+                "frequency": self.center_freq
+            }
+        except Exception as e:
+            self.sdr = None
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"SDR initialization failed: {str(e)}"
+            )
+
+    async def disconnect(self):
+        if self.sdr:
+            try:
+                self.sdr.close()
+            except Exception as e:
+                print(f"Error closing SDR: {e}")
+            self.sdr = None
+        self.is_running = False
+        return {"status": "disconnected"}
+
+    async def read_samples(self):
+        if not self.sdr:
+            raise Exception("SDR not initialized")
+        
+        try:
+            samples = self.sdr.read_samples(self.fft_size)
+            window = np.hamming(len(samples))
+            windowed = samples * window
+            fft = np.fft.fft(windowed)
+            magnitude = np.abs(fft[:self.fft_size//2])
+            return 10 * np.log10(magnitude + 1e-10)
+        except Exception as e:
+            self.is_running = False
+            self.sdr = None
+            raise Exception(f"SDR read error: {e}")
+
+    async def set_frequency(self, freq_mhz: float):
+        if not self.is_running or not self.sdr:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Device not connected")
+        
+        freq_hz = freq_mhz * 1e6
+        try:
+            self.sdr.center_freq = freq_hz
+            self.center_freq = freq_hz
+            return {
+                "status": "success",
+                "frequency": freq_mhz,
+                "message": f"Frequency set to {freq_mhz} MHz"
+            }
+        except Exception as e:
+            raise HTTPException(
+                status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to set frequency: {str(e)}"
+            )
+
+    async def stream_data(self, websocket: WebSocket):
+        await websocket.accept()
+        self.clients.add(websocket)
+        try:
+            while self.is_running and self.sdr:
+                try:
+                    fft = await self.read_samples()
+                    await websocket.send_json({
+                        "fft": fft.tolist(),
+                        "sample_rate": self.sample_rate,
+                        "center_freq": self.center_freq,
+                        "status": "streaming"
+                    })
+                    await asyncio.sleep(0.1)
+                except Exception as e:
+                    print(f"Stream error: {str(e)}")
+                    await websocket.send_json({
+                        "status": "disconnected",
+                        "message": str(e)
+                    })
+                    break
+        finally:
+            self.clients.discard(websocket)
+
+sdr_manager = SDRManager()
+
+# API Endpoints
+
+@app.post("/api/sdr/connect")
+async def connect_sdr():
+    return await sdr_manager.connect()
+
+@app.post("/api/sdr/disconnect")
+async def disconnect_sdr():
+    return await sdr_manager.disconnect()
+
+@app.websocket("/ws/spectrum")
+async def websocket_endpoint(websocket: WebSocket):
+    await sdr_manager.stream_data(websocket)
+
+@app.get("/api/sdr/status")
+async def get_status():
+    return {
+        "connected": sdr_manager.is_running,
+        "device_present": sdr_manager.is_device_connected(),
+        "frequency": sdr_manager.center_freq if sdr_manager.is_running else 0,  # Use 0 instead of None
+        "sample_rate": sdr_manager.sample_rate if sdr_manager.is_running else None
+    }
+
+@app.post("/api/sdr/gain")
+async def set_gain(req: GainRequest):
+    if not sdr_manager.is_running or not sdr_manager.sdr:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Device not connected")
+    
+    try:
+        if req.gain_type.lower() == "lna":
+            sdr_manager.sdr.gain = req.value
+        else:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Unsupported gain type")
+        
+        return {"status": "success", "gain": req.value}
+    except Exception as e:
+        raise HTTPException(
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to set gain: {str(e)}"
+        )
+
+@app.post("/api/sdr/mode")
+async def set_mode(req: ModeRequest):
+    sdr_manager.current_mode = req.mode
+    return {"status": "success", "mode": req.mode}
+
+@app.post("/api/sdr/frequency")
+async def set_frequency(data: dict):
+    try:
+        freq_mhz = float(data.get('frequency', 0))
+        freq_hz = int(freq_mhz * 1e6)
+
+        # Validate frequency in Hz (24MHz to 1766MHz)
+        if not 24_000_000 <= freq_hz <= 1_766_000_000:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Frequency {freq_mhz} MHz out of range (24 - 1766 MHz)"
+            )
+
+        # Use sdr_manager.sdr to set frequency
+        if not sdr_manager.is_running or not sdr_manager.sdr:
+            raise HTTPException(status_code=400, detail="SDR device not connected")
+
+        sdr_manager.sdr.center_freq = freq_hz
+        sdr_manager.center_freq = freq_hz  # update stored freq
+
+        return {"status": "success", "frequency": freq_mhz}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.api_route("/", methods=["GET", "HEAD"])
 async def read_root(request: Request):
