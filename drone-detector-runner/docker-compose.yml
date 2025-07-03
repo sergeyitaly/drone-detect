@@ -1,0 +1,19 @@
+version: "3.8"
+
+services:
+  drone_app:
+    image: drone-detector-app:latest
+    container_name: drone_app_runner
+    env_file:
+      - ../.env
+    environment:
+      POSTGRES_HOST: drone-detect-db-1
+    ports:
+      - "8020:8020"
+    restart: always
+    networks:
+      - drone-detect_default
+
+networks:
+  drone-detect_default:
+    external: true
