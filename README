@@ -32,9 +32,15 @@ ALTER TABLE jamming_events
 ALTER COLUMN affected_systems TYPE JSON
 USING array_to_json(affected_systems);
 
+/etc/systemd/system/cloudflared.service for tunel setup
+/home/pi/.cloudflared/config.yml - for hosts management
 
 alembic stamp head
 alembic revision --autogenerate -m "initial migration"
 alembic upgrade head
 
-
+.. build from a rasp
+docker-compose down && docker volume rm drone-detector_postgres_data && chmod +x init.sh && docker-compose up -d
+docker build -t drone-detector-app .
+cd ~/drone-detector/drone-detector-runner
+docker-compose up -d
