@@ -1,0 +1,17 @@
+version: "3.8"
+
+services:
+  drone_app:
+    image: drone-detector-app
+    container_name: drone_app_runner
+    env_file:
+      - ../.env
+    ports:
+      - "8020:8020"
+    restart: always
+    networks:
+      - drone-detect_default
+
+networks:
+  drone-detect_default:
+    external: true

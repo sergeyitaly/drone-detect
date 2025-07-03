@@ -41,6 +41,6 @@ alembic upgrade head
 
 .. build from a rasp
 docker-compose down && docker volume rm drone-detector_postgres_data && chmod +x init.sh && docker-compose up -d
-docker build -t drone-detector-app .
-cd ~/drone-detector/drone-detector-runner
-docker-compose up -d
+sudo docker build -t drone-detector-app .
+cd drone-detector-runner
+sudo docker-compose up -d
