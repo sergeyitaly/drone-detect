@@ -37,7 +37,6 @@
         const gainValue = document.getElementById('gainValue');
         const sensitivity = document.getElementById('sensitivity');
         const sensitivityValue = document.getElementById('sensitivityValue');
-        window.API_BASE_URL = "{{ api_base_url }}";
         const API_BASE_URL = window.API_BASE_URL;
 
         // Initialize Charts with sample data
