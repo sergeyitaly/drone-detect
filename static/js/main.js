@@ -89,7 +89,7 @@
         let websocket = null;
         let currentSessionId = null;
         let isConnected = false;
-        const API_BASE_URL = "http://localhost:8000";
+        const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
         // Connect to WebSocket
         async function connectWebSocket() {
@@ -2171,8 +2171,9 @@ document.addEventListener('DOMContentLoaded', function() {
   };
 
   // Initialize SDR controller
-  const sdrController = new SDRController('http://localhost:8000');
-  
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+  const sdrController = new SDRController(API_BASE_URL);
+
   // Set up callbacks
   sdrController.onStatusUpdate((connected) => {
     if (connected) {
