@@ -78,7 +78,7 @@ DRONE_DETECTOR, SHAHEED_DETECTOR = load_models()
 app = FastAPI()
 
 DATABASE_URL = os.getenv("DATABASE_URL")
-API_BASE_URL = os.getenv("API_BASE_URL")
+VITE_API_BASE_URL = os.getenv("VITE_API_BASE_URL")
 
 engine = create_engine(DATABASE_URL)
 with engine.connect() as conn:
@@ -1400,11 +1400,7 @@ Instrumentator().instrument(app).expose(app)
 
 @app.api_route("/", methods=["GET", "HEAD"])
 async def read_root(request: Request):
-    return templates.TemplateResponse("index.html", 
-        {
-        "request": request,
-        "api_base_url": os.getenv("VITE_API_BASE_URL")
-        })
+    return templates.TemplateResponse("index.html", {"request": request, "api_base_url": VITE_API_BASE_URL})
 
 async def process_message_queue():
     global current_websocket

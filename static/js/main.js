@@ -37,6 +37,8 @@
         const gainValue = document.getElementById('gainValue');
         const sensitivity = document.getElementById('sensitivity');
         const sensitivityValue = document.getElementById('sensitivityValue');
+        window.API_BASE_URL = "{{ api_base_url }}";
+        const API_BASE_URL = window.API_BASE_URL;
 
         // Initialize Charts with sample data
         const frequencyCtx = document.getElementById('frequencyChart').getContext('2d');
@@ -89,7 +91,6 @@
         let websocket = null;
         let currentSessionId = null;
         let isConnected = false;
-        const API_BASE_URL = window.API_BASE_URL;
 
         // Connect to WebSocket
         async function connectWebSocket() {
@@ -2171,7 +2172,6 @@ document.addEventListener('DOMContentLoaded', function() {
   };
 
   // Initialize SDR controller
-  const API_BASE_URL = window.API_BASE_URL;
   const sdrController = new SDRController(API_BASE_URL);
 
   // Set up callbacks
