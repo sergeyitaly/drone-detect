@@ -2171,7 +2171,7 @@ document.addEventListener('DOMContentLoaded', function() {
   };
 
   // Initialize SDR controller
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+  const API_BASE_URL = window.API_BASE_URL;
   const sdrController = new SDRController(API_BASE_URL);
 
   // Set up callbacks
