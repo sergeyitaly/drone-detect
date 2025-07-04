@@ -89,7 +89,7 @@
         let websocket = null;
         let currentSessionId = null;
         let isConnected = false;
-        const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+        const API_BASE_URL = window.API_BASE_URL;
 
         // Connect to WebSocket
         async function connectWebSocket() {

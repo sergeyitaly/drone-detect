@@ -1398,7 +1398,11 @@ Instrumentator().instrument(app).expose(app)
 
 @app.api_route("/", methods=["GET", "HEAD"])
 async def read_root(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse("index.html", 
+        {
+        "request": request,
+        "api_base_url": os.getenv("VITE_API_BASE_URL")
+        })
 
 async def process_message_queue():
     global current_websocket
