@@ -78,6 +78,8 @@ DRONE_DETECTOR, SHAHEED_DETECTOR = load_models()
 app = FastAPI()
 
 DATABASE_URL = os.getenv("DATABASE_URL")
+API_BASE_URL = os.getenv("API_BASE_URL")
+
 engine = create_engine(DATABASE_URL)
 with engine.connect() as conn:
     conn.execute(text("CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\""))
