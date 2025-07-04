@@ -44,6 +44,7 @@ from models import *
 import re
 from rtlsdr import RtlSdr
 import logging
+from prometheus_fastapi_instrumentator import Instrumentator
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -1391,6 +1392,8 @@ async def set_frequency(data: dict):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+Instrumentator().instrument(app).expose(app)
 
 
 @app.api_route("/", methods=["GET", "HEAD"])
